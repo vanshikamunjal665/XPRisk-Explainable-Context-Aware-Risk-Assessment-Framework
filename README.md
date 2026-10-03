@@ -247,12 +247,19 @@ XPRisk-Explainable-Context-Aware-Risk-Assessment-Framework/
 │       ├── explanations.py
 │       └── trends.py
 ├── demo-app/                     The application XPRisk scans
-│   ├── app/                      Flask app + controlled test scenarios
+│   ├── app/                      Flask app (clean baseline)
+│   │   ├── main.py               App factory + entry point
+│   │   ├── config.py             Settings from the environment
+│   │   ├── api/                  HTTP layer: health.py, routes.py
+│   │   ├── services/             Pure business logic
+│   │   └── requirements.txt
 │   ├── Dockerfile
 │   ├── docker-compose.yml
-│   └── requirements.txt
+│   └── README.md
 ├── infrastructure/
-│   └── terraform/main.tf         Intentionally insecure IaC for Checkov
+│   └── terraform/
+│       ├── main.tf               Intentionally insecure IaC for Checkov
+│       └── main.tf.example-vars  Placeholder values only
 ├── fixtures/                     Labelled fixture data (see fixtures/README.md)
 ├── tests/                        pytest suite
 ├── reports/                      Generated scanner output (git-ignored)
@@ -462,7 +469,25 @@ cd demo-app
 docker build -t xprisk-demo-app:latest .
 docker run --rm -p 5000:5000 xprisk-demo-app:latest
 curl.exe http://127.0.0.1:5000/health
+
+# or
+docker compose up --build
 ```
+
+The image is hardened: multi-stage build, non-root user, `HEALTHCHECK` that uses
+the bundled interpreter, and a read-only filesystem with `no-new-privileges`
+under Compose.
+
+### Validating the demo infrastructure
+
+```powershell
+terraform -chdir=infrastructure/terraform init -backend=false
+terraform -chdir=infrastructure/terraform validate
+terraform -chdir=infrastructure/terraform fmt -check
+```
+
+Never run `terraform apply` against `infrastructure/`: it is intentionally
+insecure and exists only as a Checkov test case.
 
 ### Running XPRisk under Docker Compose
 
@@ -512,36 +537,32 @@ covered by integration tests TEST 4 and TEST 5.
 
 ## 18. Project status
 
-Current delivery: **Phases 1-14**, the complete local, end-to-end system.
+Current delivery: **Phases 1-2** of the planned 1-14.
 
 | Phase | Component | Status |
 |---|---|---|
 | 1 | Development environment, structure, configuration | Complete |
 | 2 | Demo cloud-native application | Complete |
-| 3 | Controlled security test cases | Complete |
-| 4 | Trivy, Checkov, Gitleaks, SonarQube integration | Complete |
-| 5 | Finding collector | Complete |
-| 6 | Finding normalization | Complete |
-| 7 | PostgreSQL storage | Complete |
-| 8 | Context model | Complete |
-| 9 | Risk-scoring algorithm | Complete |
-| 10 | Risk engine | Complete |
-| 11 | SAFE / WARNING / BLOCK | Complete |
-| 12 | Explainability engine | Complete |
-| 13 | FastAPI backend | Complete |
-| 14 | Streamlit dashboard | Complete |
+| 3 | Controlled security test cases | Next |
+| 4 | Trivy, Checkov, Gitleaks, SonarQube integration | Planned |
+| 5 | Finding collector | Planned |
+| 6 | Finding normalization | Planned |
+| 7 | PostgreSQL storage | Planned |
+| 8 | Context model | Planned |
+| 9 | Risk-scoring algorithm | Planned |
+| 10 | Risk engine | Planned |
+| 11 | SAFE / WARNING / BLOCK | Planned |
+| 12 | Explainability engine | Planned |
+| 13 | FastAPI backend | Planned |
+| 14 | Streamlit dashboard | Planned |
 | 15 | GitHub Actions CI/CD | Reference stub, inert |
-| 16 | Deployment gate | Planned |
-| 17 | Historical trend analytics | Basic `/trends` only |
-| 18 | Full test scenarios | Core scenarios present |
-| 19 | Baseline comparison study | Pluggable strategies in place |
-| 20 | Performance measurement | Instrumentation only |
-| 21 | Dockerize XPRisk | Planned |
-| 22 | Cloud deployment | Planned |
-| 23 | Final structure and documentation polish | Planned |
+| 16-23 | Gate, historical analytics, comparative study, performance, Docker, cloud, polish | Planned |
 
-The **risk-scoring methodology**, including the justification for every weight
-and multiplier, is documented in [`docs/risk-model.md`](docs/risk-model.md).
+Verified so far: the demo application starts, serves all seven endpoints with
+`200`, returns structured JSON for every error path (400 / 404 / 405 / 500), and
+the Terraform configuration passes `terraform validate`. See
+[`demo-app/README.md`](demo-app/README.md) and
+[`infrastructure/terraform/README.md`](infrastructure/terraform/README.md).
 
 ## 19. Security notes
 

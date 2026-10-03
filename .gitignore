@@ -118,3 +118,26 @@ logs/
 *.sqlite
 *.sqlite3
 *.db-journal
+
+# --- Terraform -------------------------------------------------------------
+# Provider plugins are large binaries and are restored by `terraform init`.
+# The lock file IS tracked, because it is what makes provider versions
+# reproducible across machines.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+tfplan
+*.tfplan
+
+# Local variable files may hold real values. Only *.tfvars.example is tracked.
+!*.tfvars.example

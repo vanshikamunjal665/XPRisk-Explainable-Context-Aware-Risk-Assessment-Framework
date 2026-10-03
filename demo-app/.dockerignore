@@ -1,0 +1,32 @@
+# Keep the build context small and prevent host artefacts from leaking into
+# the image. A large or noisy context also slows down every Trivy scan,
+# because the scan target is the image itself.
+
+.git
+.gitignore
+.gitattributes
+.dockerignore
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+docker-compose.*.yml
+README.md
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+reports/
+docs/

@@ -1,0 +1,53 @@
+# ===========================================================================
+# XPRisk demo application - local orchestration
+#
+#   docker compose up --build
+#   curl.exe http://127.0.0.1:5000/health
+#   docker compose down
+#
+# This file is the *demo application's* compose file: it runs the scan target
+# only. Running the XPRisk backend, dashboard and PostgreSQL together is
+# Phase 21 (docker/README.md) and is deliberately out of the current scope.
+#
+# No secrets are declared here. Anything sensitive is supplied through an
+# environment file that is not committed; see .env.example at the repository
+# root for the variables XPRisk itself expects.
+# ===========================================================================
+
+services:
+  demo-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xprisk-demo-app:latest
+    container_name: xprisk-demo-app
+    ports:
+      - "5000:5000"
+    environment:
+      DEMO_HOST: "0.0.0.0"
+      DEMO_PORT: "5000"
+      DEMO_ENVIRONMENT: "development"
+      DEMO_SCENARIO: "clean"
+      DEMO_LOG_LEVEL: "INFO"
+      DEMO_DEBUG: "false"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

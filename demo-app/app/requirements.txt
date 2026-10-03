@@ -1,0 +1,13 @@
+# ===========================================================================
+# XPRisk demo application - runtime dependencies
+#
+# This is the application XPRisk scans, so its dependency list is
+# intentionally minimal. A small surface keeps the scan output focused on the
+# controlled test cases rather than on incidental third-party findings.
+#
+# Flask is pinned to a compatible release range. Werkzeug is listed because
+# Flask's error handlers rely on HTTPException from it.
+# ===========================================================================
+
+Flask>=3.0,<4.0
+Werkzeug>=3.0,<4.0

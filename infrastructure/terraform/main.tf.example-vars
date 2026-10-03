@@ -1,0 +1,25 @@
+# ===========================================================================
+# XPRisk demo infrastructure - example variable values
+#
+# ###########################################################################
+# #  PLACEHOLDER VALUES ONLY. NOTHING HERE IS A REAL CREDENTIAL.            #
+# #  Every value below is an obvious placeholder. Never put a real key or    #
+# #  password in this file, and never commit a .tfvars file.                 #
+# ###########################################################################
+#
+# Copy to main.tfvars to experiment locally:
+#   Copy-Item main.tf.example-vars main.tfvars
+#
+# main.tfvars is git-ignored. Terraform reads it automatically.
+# ===========================================================================
+
+aws_region   = "us-east-1"
+project_name = "xprisk-demo"
+bucket_name  = "xprisk-demo-insecure-bucket"
+
+# Placeholder. The canonical AWS documentation example key, which is not a
+# valid credential and grants access to nothing.
+admin_access_key = "AKIAIOSFODNN7EXAMPLE"
+
+# Placeholder. Matches the "obviously fake" convention used throughout XPRisk.
+db_master_password = "CHANGEME-not-a-real-password"
