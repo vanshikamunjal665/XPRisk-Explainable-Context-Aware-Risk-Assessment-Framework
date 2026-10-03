@@ -1,0 +1,11 @@
+# ===========================================================================
+# XPRisk dashboard dependencies
+# The dashboard is a pure HTTP client of the XPRisk FastAPI backend.
+# It deliberately imports nothing from risk_engine/, normalizer/ or scanners/,
+# so the dashboard can be deployed and scaled independently of the backend.
+# ===========================================================================
+
+streamlit>=1.40,<2.0
+plotly>=5.24,<7.0
+pandas>=2.2,<3.0
+httpx>=0.27,<1.0

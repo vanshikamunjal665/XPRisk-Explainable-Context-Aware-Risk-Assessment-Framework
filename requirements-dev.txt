@@ -1,0 +1,11 @@
+# ===========================================================================
+# XPRisk development / test dependencies
+# Installs the backend, the dashboard and the test tooling together, so that
+# a single `pip install -r requirements-dev.txt` prepares a working dev env.
+# ===========================================================================
+
+-r backend/requirements.txt
+-r dashboard/requirements.txt
+
+pytest>=8.0,<10.0
+pytest-cov>=5.0,<8.0

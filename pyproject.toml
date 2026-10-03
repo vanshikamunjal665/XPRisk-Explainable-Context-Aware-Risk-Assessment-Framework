@@ -1,0 +1,62 @@
+# ===========================================================================
+# XPRisk - Explainable Context-Aware Risk Assessment Framework
+#
+# Tool configuration only. XPRisk is intentionally NOT distributed as a
+# packaged library: it is an application that is run from the repository
+# root. This avoids an install step and keeps the import graph obvious,
+# which matters when the project has to be explained in a viva.
+# ===========================================================================
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+
+# The repository root is the import root. The domain packages (scanners/,
+# normalizer/, risk_engine/, explainability/) live at the root, while the
+# FastAPI application lives in the backend/app/ package. Adding the root to
+# sys.path is what lets `backend.app` import `risk_engine` and friends.
+pythonpath = ["."]
+
+addopts = [
+    "-ra",                       # show a summary of all non-passing tests
+    "--strict-markers",          # fail on an unregistered @pytest.mark
+    "--strict-config",           # fail on unknown ini options
+    "--tb=short",                # compact tracebacks
+]
+
+markers = [
+    "unit: fast, isolated test of a single function or class",
+    "integration: exercises several components together (scanner -> risk -> API)",
+    "contract: validates a parser against a real scanner output schema",
+    "fixture: runs against labelled fixture data instead of a real scanner",
+    "slow: takes more than a couple of seconds (e.g. real scanner execution)",
+]
+
+filterwarnings = [
+    "ignore::DeprecationWarning:pkg_resources.*",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "backend/app",
+    "scanners",
+    "normalizer",
+    "risk_engine",
+    "explainability",
+]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

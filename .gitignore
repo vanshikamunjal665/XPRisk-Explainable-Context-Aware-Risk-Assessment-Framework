@@ -1,0 +1,120 @@
+# ---------------------------------------------------------------------------
+# XPRisk - Explainable Context-Aware Risk Assessment Framework
+# Git ignore rules. Tuned for Windows-first development (PowerShell, VS Code)
+# while remaining cross-platform.
+# ---------------------------------------------------------------------------
+
+# --- Secrets & local configuration -----------------------------------------
+# .env.example IS tracked; .env is NEVER tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Virtual environments --------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# --- pytest / coverage -----------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# --- Type checkers / linters ----------------------------------------------
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pyre/
+.pytype/
+
+# --- Scanner output & generated reports ------------------------------------
+# Raw scanner JSON is machine-generated. Never commit it: it is large, it is
+# environment specific, and it can contain fragments of matched secrets.
+reports/*
+!reports/.gitkeep
+!reports/README.md
+*.sarif
+
+# Trivy / Checkov / Gitleaks default output names
+trivy-report.json
+checkov-report.json
+gitleaks-report.json
+checkov-results*.json
+checkov-*.sarif
+trivy-*.json
+
+# --- Test & tool caches ----------------------------------------------------
+.cache/
+node_modules/
+.streamlit/secrets.toml
+
+# --- IDEs ------------------------------------------------------------------
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.code-workspace
+
+# --- OS noise --------------------------------------------------------------
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+# macOS / Linux
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.fuse_hidden*
+# Linux
+.directory
+
+# --- Logs & databases ------------------------------------------------------
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal

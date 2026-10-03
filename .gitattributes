@@ -1,0 +1,62 @@
+# ===========================================================================
+# XPRisk - line ending normalisation
+#
+# Development happens on Windows, but the project is cross-platform and the
+# scanner tooling (Terraform, Checkov, shell entrypoints) assumes LF. Without
+# this file Git converts LF to CRLF in the working tree on Windows, which makes
+# `git diff` show whole files as changed and breaks shell scripts.
+#
+# * text=auto            Git normalises to LF in the repository
+# * eol=lf               working tree uses LF even on Windows
+# ===========================================================================
+
+# Default: detect text files, store LF, check out LF.
+* text=auto eol=lf
+
+# ---------------------------------------------------------------------------
+# Files that must stay CRLF: Windows-specific
+# ---------------------------------------------------------------------------
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+
+# ---------------------------------------------------------------------------
+# Files that must stay binary: never touched by EOL conversion
+# ---------------------------------------------------------------------------
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.jar    binary
+*.whl    binary
+*.exe    binary
+*.dll    binary
+*.so     binary
+*.db     binary
+*.sqlite binary
+
+# ---------------------------------------------------------------------------
+# Explicitly lock key file types
+# ---------------------------------------------------------------------------
+*.py     text eol=lf diff=python
+*.md     text eol=lf diff=markdown
+*.toml   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.json   text eol=lf
+*.tf     text eol=lf
+*.tfvars text eol=lf
+*.sh     text eol=lf
+Dockerfile      text eol=lf
+Dockerfile.*    text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+.env.example    text eol=lf
+
+# Remove the linguist noise for generated / vendored paths in GitHub diffs.
+fixtures/**    linguist-generated=true
+reports/**      linguist-generated=true

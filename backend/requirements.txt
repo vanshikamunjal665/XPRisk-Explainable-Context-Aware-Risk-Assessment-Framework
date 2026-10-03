@@ -1,0 +1,26 @@
+# ===========================================================================
+# XPRisk backend runtime dependencies
+# XPRisk - Explainable Context-Aware Risk Assessment Framework
+#
+# Lower bounds only, with an upper major-version cap, so the project stays
+# installable as the ecosystem moves. Verified against Python 3.12.7.
+# ===========================================================================
+
+# --- Web framework ---------------------------------------------------------
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+
+# --- Settings & validation -------------------------------------------------
+pydantic>=2.7,<3.0
+pydantic-settings>=2.3,<3.0
+python-dotenv>=1.0,<2.0
+
+# --- Persistence -----------------------------------------------------------
+SQLAlchemy>=2.0,<3.0
+# psycopg2-binary ships prebuilt Windows wheels, so no local C toolchain or
+# libpq install is required. Preferred over psycopg[binary] for this reason.
+psycopg2-binary>=2.9,<3.0
+
+# --- HTTP client -----------------------------------------------------------
+# Used for the SonarQube Web API client and by pytest's TestClient.
+httpx>=0.27,<1.0

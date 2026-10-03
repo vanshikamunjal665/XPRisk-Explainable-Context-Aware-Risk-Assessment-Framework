@@ -1,0 +1,16 @@
+# ===========================================================================
+# XPRisk - convenience entry point
+#
+# Installing this file installs everything needed to run the backend, the
+# dashboard and the test suite:
+#
+#   PowerShell :  .\.venv\Scripts\Activate.ps1
+#                 pip install -r requirements.txt
+#
+# If you prefer to install only part of the project:
+#   pip install -r backend/requirements.txt     # backend only
+#   pip install -r dashboard/requirements.txt   # dashboard only
+#   pip install -r requirements-dev.txt         # everything + test tooling
+# ===========================================================================
+
+-r requirements-dev.txt
