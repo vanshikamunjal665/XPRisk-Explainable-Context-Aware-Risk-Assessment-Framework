@@ -1,0 +1,88 @@
+# ===========================================================================
+# XPRisk — extended Gitleaks rule set (Phase 3 / Phase 4)
+#
+# This file is REAL CONFIGURATION, not a fixture. It is passed to real
+# Gitleaks runs via `--config` or the GITLEAKS_CONFIG environment variable.
+#
+# Why it exists
+# -------------
+# Gitleaks is entropy- and pattern-driven, and upstream rules are tuned to
+# avoid false positives on real credentials. Verified against Gitleaks
+# 8.30.1, the upstream default rule set does NOT flag deliberately fake,
+# human-readable placeholder values:
+#
+#   ghp_<36 chars>   (GitHub classic PAT)   -> not flagged
+#   AKIA<19 chars>   (AWS access key id)    -> not flagged
+#   xoxb-...         (Slack bot token)      -> not flagged
+#   AKIAIOSFODNN7EXAMPLE (AWS doc example)  -> not flagged
+#
+# Only `private-key` (PEM header) and `gitlab-pat` fired during probing.
+#
+# The consequence is that a controlled test case built from readable
+# placeholders such as `XPRISK_TEST_SECRET=demo-only-not-a-real-secret`
+# would silently produce ZERO findings. The scanner would look like it
+# worked while detecting nothing — the worst possible failure mode for an
+# evaluation demo.
+#
+# The single rule added below makes detection deterministic while keeping
+# every matched value obviously not a real credential. Detection stays
+# reproducible; the matched strings stay fake.
+#
+# Extends the upstream rule set rather than replacing it, so genuine
+# high-signal findings (for example `private-key`) are still caught.
+# ===========================================================================
+
+title = "XPRisk extended rule set"
+
+# Keep every upstream rule, then add the single rule below.
+#
+# The `[extend]` table is REQUIRED. Gitleaks 8.19+ also accepts a bare
+# top-level `useDefault = true`, but verified against Gitleaks 8.30.1 that
+# form does NOT merge the default rule set: it silently replaces it, and
+# only the custom rule below survives. Measured on
+# demo-app/scenarios/insecure with this rule set:
+#
+#   [extend] useDefault = true  -> 2 findings (private-key + xprisk-test-secret)
+#   useDefault = true           -> 1 finding  (xprisk-test-secret only)
+#
+# With the wrong form the scan still exits 0 and still produces a report,
+# so the failure is invisible unless you check the finding count.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "xprisk-test-secret"
+description = "XPRisk labelled test-only secret (Phase 3 controlled fixture)"
+
+# Matches an assignment whose NAME is an obvious XPRisk test marker and
+# whose VALUE is non-empty, for example:
+#
+#   XPRISK_TEST_SECRET=demo-only-not-a-real-secret
+#   XPRISK_TEST_API_TOKEN=demo-only-not-a-real-token
+#   XPRISK_TEST_DB_PASSWORD=demo-only-not-a-real-password
+#
+# The trailing `[ \t]*\S+` is deliberate, and the character class matters:
+#
+#   * An EMPTY assignment such as `XPRISK_TEST_SECRET=` must NOT match. That
+#     is what keeps the clean counterpart at
+#     demo-app/scenarios/clean/secrets/no_secrets.env at zero findings.
+#
+#   * The separator class is `[ \t]`, NOT `\s`. Gitleaks matches against
+#     multi-line file content, and `\s` also matches `\n`. Using `\s*=\s*\S+`
+#     therefore made `XPRISK_TEST_SECRET=` match the FOLLOWING line's
+#     contents, producing a false positive on the clean fixture. Verified:
+#     that bug produced exactly one spurious hit at no_secrets.env line 15.
+#     `[ \t]` keeps every match on a single line.
+#
+# Note that `XPRISK_TEST_PRIVATE_KEY` does not match here on purpose. It is
+# caught by the upstream `private-key` rule instead, so the two severity
+# paths (custom rule -> HIGH, upstream rule -> CRITICAL) stay distinct and
+# observable in the pipeline.
+regex = '''(?i)\bxprisk[_-]?test[_-]?(?:secret|token|password|credential)[ \t]*=[ \t]*\S+'''
+
+# Cheap pre-filter. Gitleaks skips the regex when no keyword is present.
+keywords = ["xprisk"]
+
+# These are labelled fakes, not live credentials. Tag them so downstream
+# normalisation and the dashboard can tell them apart at a glance.
+tags = ["xprisk", "test-fixture", "false-positive-by-design"]

@@ -1,15 +1,21 @@
-# XPRisk Phase 3 - CLEAN container counterpart.
+# XPRisk Phase 3 - CLEAN container counterpart (Trivy negative-ish target).
 #
-# Uses a current, maintained, minimal base image so that Trivy is expected
-# to report few or no HIGH/CRITICAL CVEs relative to Dockerfile.vulnerable.
-# This is a hardening counterpart fixture, not the production demo image
-# (which lives at demo-app/Dockerfile).
+# Uses a current, maintained, minimal base image so that Trivy is expected to
+# report far fewer CRITICAL/HIGH CVEs than Dockerfile.vulnerable. This is the
+# hardened half of the container pair, not the demo application image.
+#
+# WHY THIS FILE HAS NO COPY / RUN INSTRUCTIONS
+# ---------------------------------------------
+# An earlier version did `COPY requirements.txt .` and `COPY . .`, which
+# assumed this file sat at the root of the demo application. It does not:
+# this file lives in demo-app/scenarios/clean/, where there is no
+# requirements.txt and no app/ directory, so the build failed immediately.
+#
+# A base-image-only target is buildable and more deterministic: the CVEs come
+# from the distribution's own package set, which is fixed for a given tag.
+#
+# This is NOT the demo application image. That is demo-app/Dockerfile.
 
 FROM python:3.12-slim-bookworm
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-
-CMD ["python", "-m", "app.main"]
+# Intentionally no CMD: this image is never executed, only scanned.

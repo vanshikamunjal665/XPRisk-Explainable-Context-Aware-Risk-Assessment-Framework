@@ -317,6 +317,31 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
+<details>
+<summary>If <code>pip install</code> hangs or fails with <code>access violation</code></summary>
+
+On some Windows machines `pip` stalls during TLS and reports:
+
+```
+WARNING: Retrying ... after connection broken by
+'ProtocolError('Connection aborted.', OSError('exception: access violation writing 0x48'))': /simple/<package>/
+```
+
+and eventually exits with `0xC0000142` (`STATUS_DLL_INIT_FAILED`). Plain HTTPS
+from the same interpreter still works, so this is specific to pip's own TLS
+path, not a network outage.
+
+Disabling certificate verification for PyPI resolves it:
+
+```powershell
+pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
+```
+
+This is a workaround for a broken local TLS stack, not a recommendation. If
+pip works normally on your machine, use the plain command above.
+
+</details>
+
 Verify the install:
 
 ```powershell
@@ -537,32 +562,40 @@ covered by integration tests TEST 4 and TEST 5.
 
 ## 18. Project status
 
-Current delivery: **Phases 1-2** of the planned 1-14.
+Current delivery: **Phases 1-8** of the planned 1-14.
 
 | Phase | Component | Status |
 |---|---|---|
 | 1 | Development environment, structure, configuration | Complete |
 | 2 | Demo cloud-native application | Complete |
-| 3 | Controlled security test cases | Next |
-| 4 | Trivy, Checkov, Gitleaks, SonarQube integration | Planned |
-| 5 | Finding collector | Planned |
-| 6 | Finding normalization | Planned |
-| 7 | PostgreSQL storage | Planned |
-| 8 | Context model | Planned |
-| 9 | Risk-scoring algorithm | Planned |
+| 3 | Controlled security test cases | Complete |
+| 4 | Trivy, Checkov, Gitleaks, SonarQube integration | Complete |
+| 5 | Finding collector | Complete |
+| 6 | Finding normalization | Complete |
+| 7 | PostgreSQL storage | Complete (SQLite verified; live PostgreSQL not yet run) |
+| 8 | Context model | Complete |
+| 9 | Risk-scoring algorithm | Next |
 | 10 | Risk engine | Planned |
 | 11 | SAFE / WARNING / BLOCK | Planned |
 | 12 | Explainability engine | Planned |
-| 13 | FastAPI backend | Planned |
+| 13 | FastAPI backend | Planned (`/health` only) |
 | 14 | Streamlit dashboard | Planned |
 | 15 | GitHub Actions CI/CD | Reference stub, inert |
 | 16-23 | Gate, historical analytics, comparative study, performance, Docker, cloud, polish | Planned |
 
-Verified so far: the demo application starts, serves all seven endpoints with
-`200`, returns structured JSON for every error path (400 / 404 / 405 / 500), and
-the Terraform configuration passes `terraform validate`. See
-[`demo-app/README.md`](demo-app/README.md) and
-[`infrastructure/terraform/README.md`](infrastructure/terraform/README.md).
+Verified so far: the demo application starts and serves all seven endpoints
+with `200`, every error path returns structured JSON (400 / 404 / 405 / 500),
+`terraform validate` passes, and the Gitleaks path has been confirmed end to
+end against a **real** `gitleaks dir` run (8.30.1) — 2 findings on the
+insecure scenario, 0 on the clean one. See
+[`demo-app/README.md`](demo-app/README.md),
+[`infrastructure/terraform/README.md`](infrastructure/terraform/README.md),
+[`demo-app/scenarios/README.md`](demo-app/scenarios/README.md) and
+[`fixtures/README.md`](fixtures/README.md).
+
+Known gaps carried into Phase 9: `backend/app/config.py` does not exist yet
+(settings are read ad hoc via `os.environ`), and the Trivy adapter implements
+`scan_image` only even though `.env.example` declares a filesystem target type.
 
 ## 19. Security notes
 
@@ -574,6 +607,18 @@ enforces on others:
 - **No shell injection.** Tools run via `subprocess.run` with an explicit
   argument list and `shell=False`. No command string is ever built from user
   input.
+  - **One documented exception.** On Windows, a pip-installed Python CLI is a
+    `.cmd` batch shim, and `subprocess` with `shell=False` cannot execute one
+    (`subprocess` does not consult `PATHEXT`; only `CreateProcess` appends
+    `.exe`). Verified with checkov 3.3.22: `subprocess.run(["checkov", ...],
+    shell=False)` raises `FileNotFoundError` even though the shim is on `PATH`.
+    `scanners.base.resolve_executable()` therefore resolves such a shim with
+    `shutil.which` and invokes it as `COMSPEC /d /c <shim> <args...>`.
+    - Real executables — `gitleaks.exe`, `trivy.exe` — are untouched and still
+      run with `shell=False`.
+    - Arguments are still passed as a list and are never concatenated into a
+      command string. Only `cmd.exe` itself interprets them.
+    - `/d` disables AutoRun script execution.
 - **No `eval` or `exec`** anywhere in the project.
 - **Untrusted scanner output.** Every scanner report is shape-validated before
   use, because a malformed report must not be able to crash the backend.

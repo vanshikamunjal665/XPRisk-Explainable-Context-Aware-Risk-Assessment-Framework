@@ -11,8 +11,29 @@ with the exception of this file and `.gitkeep`.
 | `sonar-report.json` | XPRisk SonarQube client | Raw API response, unmodified |
 | `scan-<deployment_id>.json` | XPRisk | Full scan record: status, timings, normalized findings, contributions |
 | `performance.json` | XPRisk | Phase 15+ scanner and stage timings |
+| `comparative_study_results.json` | `xprisk_comparative.py` | Phase 9. **Committed** — see below |
 
-## Why these files are not committed
+## `comparative_study_results.json` is committed
+
+This file is the exception to the rule below, and deliberately so.
+
+It holds the Phase 9 comparative study: the same finding sets scored under
+three policies (severity-only, severity + category, context-aware) across four
+deployment contexts. It is small, fully deterministic, contains no paths or
+digests, and it is **evidence for a claim made in `docs/risk-model.md` §9**.
+
+That last point is why it is tracked. Methodology Step 4 requires a comparative
+analysis, and an analysis whose numbers cannot be checked is an assertion rather
+than a result. Anyone can re-run `xprisk_comparative.py` and diff the output
+against the committed file to confirm the model behaves as documented.
+
+Regenerate with:
+
+```powershell
+.\.venv\Scripts\python.exe xprisk_comparative.py
+```
+
+## Why the other files are not committed
 
 1. **Size.** A Trivy JSON report is routinely tens of megabytes. Committing one
    per scan would make the repository unusable within a few runs.
