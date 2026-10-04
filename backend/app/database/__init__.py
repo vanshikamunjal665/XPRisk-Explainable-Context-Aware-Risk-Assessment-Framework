@@ -25,4 +25,18 @@ never logged, and the URL is redacted before it appears in any log line or
 health payload.
 """
 
-__all__: list[str] = []
+from backend.app.database.database import (  # noqa: E402
+    Base,
+    get_database_url,
+    make_engine,
+    make_session_factory,
+    session_scope,
+)
+
+__all__ = [
+    "Base",
+    "get_database_url",
+    "make_engine",
+    "make_session_factory",
+    "session_scope",
+]

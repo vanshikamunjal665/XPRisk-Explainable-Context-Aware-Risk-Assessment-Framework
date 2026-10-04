@@ -27,4 +27,6 @@ silently rewrite history. Persisting the contribution breakdown keeps every
 past assessment auditable, which is a stated objective of the project.
 """
 
-__all__: list[str] = []
+__all__ = ["Deployment", "Finding", "RiskFactor"]
+
+from backend.app.models.models import Deployment, Finding, RiskFactor  # noqa: E402,F401

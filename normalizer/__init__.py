@@ -49,4 +49,14 @@ Modules
    is importable from the moment the repository skeleton exists.
 """
 
-__all__: list[str] = []
+__all__ = ["Category", "NormalizedFinding", "Severity", "XPRiskFinding", "normalize_checkov", "normalize_collection", "normalize_gitleaks", "normalize_result", "normalize_sonarqube", "normalize_trivy"]
+
+from normalizer.models import Category, NormalizedFinding, Severity, XPRiskFinding  # noqa: E402
+from normalizer.normalizer import (  # noqa: E402
+    normalize_checkov,
+    normalize_collection,
+    normalize_gitleaks,
+    normalize_result,
+    normalize_sonarqube,
+    normalize_trivy,
+)

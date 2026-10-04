@@ -31,4 +31,6 @@ It means parser logic is unit testable without executing any security tool, and
 a scanner integration bug cannot corrupt the risk model.
 """
 
-__all__: list[str] = []
+__all__ = ["StorageService"]
+
+from backend.app.services.storage_service import StorageService  # noqa: E402,F401
