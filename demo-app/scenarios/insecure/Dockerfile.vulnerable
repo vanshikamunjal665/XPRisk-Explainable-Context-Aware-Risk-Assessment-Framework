@@ -1,22 +1,35 @@
-# XPRisk Phase 3 - INTENTIONALLY VULNERABLE container fixture.
+# XPRisk Phase 3 - INTENTIONALLY VULNERABLE container fixture (Trivy target).
 #
 # ###########################################################################
 # #  CONTROLLED SCANNER TEST CASE FOR TRIVY. DO NOT DEPLOY.                #
 # #                                                                        #
-# #  The base image is deliberately an old, end-of-life Python so that      #
-# #  Trivy reports many known CVEs against its OS and Python packages.      #
-# #  This image exists only as a scanner target; it is never run in CI/CD.  #
+# #  The base image is deliberately an old, end-of-line Python so that      #
+# #  Trivy reports many known CRITICAL/HIGH CVEs against its Debian and     #
+# #  Python packages. This image exists only as a scanner target; it is    #
+# #  never run in CI/CD.                                                   #
 # ###########################################################################
 #
-# Expected Trivy behaviour: CRITICAL/HIGH OS and library CVEs for
-# Debian / Python 3.6 era packages (the base image is end-of-life and
-# no longer receives security updates).
+# WHY THIS FILE HAS NO COPY / RUN INSTRUCTIONS
+# ---------------------------------------------
+# An earlier version did `COPY requirements.txt .` and `COPY . .`, which
+# assumed this file sat at the root of the demo application. It does not:
+# this file lives in demo-app/scenarios/insecure/, where there is no
+# requirements.txt and no app/ directory, so the build failed immediately.
+#
+# The build context problem was also misleading. Even if the copies had
+# resolved, `CMD ["python", "-m", "app.main"]` would have started the CLEAN
+# Flask application -- insecure_code.py is a standalone SonarQube fixture and
+# is never wired into the app -- so the image would have been labelled
+# "vulnerable" while running perfectly safe code.
+#
+# A base-image-only target is both buildable and more deterministic: the CVEs
+# come from the distribution's own package set, which is fixed for a given tag.
+#
+# Expected Trivy behaviour: numerous CRITICAL/HIGH OS and library CVEs for
+# Debian stretch / Python 3.6 era packages.
+#
+# This is NOT the demo application image. That is demo-app/Dockerfile.
 
 FROM python:3.6-slim
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-
-CMD ["python", "-m", "app.main"]
+# Intentionally no CMD: this image is never executed, only scanned.

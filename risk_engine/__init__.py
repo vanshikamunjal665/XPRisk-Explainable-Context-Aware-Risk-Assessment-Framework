@@ -9,6 +9,10 @@ Modules
 ``severity.py``
     Severity enumeration and the base severity weights.
 
+``settings.py``
+    Every configurable constant of the risk model, as an immutable validated
+    object. Reads nothing from the environment; see :mod:`backend.app.config`.
+
 ``context.py``
     The context model: what XPRisk knows about *where* and *how* a finding is
     being deployed. Produces structured context data only; it contains no
@@ -51,12 +55,26 @@ not a defensible research contribution.
 
 Configuration
 -------------
-Every number above is a default held in :mod:`risk_engine.settings` and can be
-overridden by environment variables (see ``.env.example``). This is what makes
-the comparative study (severity-only vs severity+count vs context-aware)
-possible without editing code. See ``docs/risk-model.md`` for the rationale
-behind each default, including the explicit statement that these values are
-prototype design decisions rather than empirically proven constants.
+Every number above is a default held in :mod:`risk_engine.settings`, which reads
+**nothing** from the environment. This package is a domain layer and stays free
+of ambient configuration, matching the rule established by ``normalizer`` in
+Phase 6.
+
+Overriding a value means constructing a ``RiskSettings`` with different numbers.
+:mod:`backend.app.config` is the other half of that contract: it reads the
+``XPRISK_*`` variables declared in ``.env.example``, validates them, and
+constructs the ``RiskSettings`` that gets injected into :class:`RiskEngine`.
+
+Because configuration is injected rather than ambient, the same engine and the
+same findings can be scored under different policies without editing code. That
+is what makes the comparative study (severity-only vs severity+count vs
+context-aware) possible. See ``docs/risk-model.md`` for the rationale behind each
+default, including the explicit statement that these values are prototype design
+decisions rather than empirically proven constants.
+
+The consequences of this model are enforced by ``tests/test_config.py``, which
+fails if any module in ``risk_engine`` or ``normalizer`` reads ``os.environ`` or
+imports ``pydantic_settings``.
 """
 
 __all__: list[str] = []

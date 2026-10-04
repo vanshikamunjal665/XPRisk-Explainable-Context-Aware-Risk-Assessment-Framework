@@ -22,6 +22,8 @@ Every run is reported with exactly one :class:`ScannerStatus`:
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
@@ -56,12 +58,69 @@ class CommandOutcome:
         return self.error is None
 
 
+# Suffixes that Windows can only execute via the command interpreter.
+# Python console-script shims (``pip install``d tools such as checkov) are
+# generated as ``.cmd`` batch files, not as ``.exe``.
+_SHELL_SHIM_SUFFIXES = (".cmd", ".bat")
+
+
+def resolve_executable(argv: list[str]) -> list[str]:
+    """Make a bare executable name resolvable on Windows.
+
+    Why this exists
+    ---------------
+    ``subprocess.run(..., shell=False)`` does **not** consult ``PATHEXT``.
+    On Windows it hands the name straight to ``CreateProcess``, which only
+    ever appends ``.exe``. A pip-installed Python CLI is shipped as a ``.cmd``
+    batch shim, so it is invisible to it even though the shim is on ``PATH``.
+
+    Verified on Windows 11 with checkov 3.3.22:
+
+    * ``shutil.which("checkov")`` -> ``.venv\\Scripts\\checkov.cmd``
+    * ``subprocess.run(["checkov", "--version"], shell=False)`` ->
+      ``FileNotFoundError: [WinError 2]``, surfaced by the adapter as
+      ``ScannerStatus.UNAVAILABLE``
+
+    Native binaries are unaffected: ``gitleaks.exe`` and ``trivy.exe`` resolve
+    normally, which is why this was not caught before checkov was installed.
+
+    What this does to the security guarantee
+    ----------------------------------------
+    Real executables still run with ``shell=False`` and an explicit argv list,
+    exactly as before. Only a resolved ``.cmd``/``.bat`` shim is routed through
+    ``COMSPEC``, which is unavoidable: ``cmd.exe`` is the only thing Windows
+    can use to execute a batch file. ``/d`` disables AutoRun script
+    execution. The project does not build command *strings* from scanner
+    output or user input; arguments are still passed as a list, never
+    concatenated. This is documented in README section 19 rather than left
+    implicit.
+    """
+
+    if os.name != "nt" or not argv:
+        return argv
+
+    executable = argv[0]
+    resolved = shutil.which(executable)
+    if resolved is None:
+        # Preserve the existing behaviour so the caller reports UNAVAILABLE
+        # with the original name.
+        return argv
+    if os.path.splitext(resolved)[1].lower() not in _SHELL_SHIM_SUFFIXES:
+        # A real executable: leave the argv untouched.
+        return argv
+
+    comspec = os.environ.get("COMSPEC") or os.environ.get("ComSpec") or "cmd.exe"
+    return [comspec, "/d", "/c", resolved, *argv[1:]]
+
+
 def run_command(argv: list[str], timeout: float) -> CommandOutcome:
     """Run ``argv`` without a shell and capture output separately.
 
     Never raises for missing executables, timeouts or OS-level errors; those
     are reported on the returned :class:`CommandOutcome`.
     """
+
+    argv = resolve_executable(argv)
 
     try:
         completed = subprocess.run(  # noqa: S603 - argv list, shell=False

@@ -140,10 +140,14 @@ def test_phase6_normalized_findings_persist(storage):
         },
     )
     normalized = normalize_collection(collection)
-    assert len(normalized) == 7
+    # 2 Gitleaks (xprisk-test-secret + private-key) + 2 Trivy + 2 Checkov
+    # + 2 SonarQube, matching the verified Gitleaks 8.30.1 run.
+    assert len(normalized) == 8
     dep = _dep(storage)
     rows = storage.save_findings(dep.id, normalized)
-    assert len(rows) == 7
+    assert len(rows) == 8
     tools = {r.tool for r in rows}
     assert tools == {"GITLEAKS", "TRIVY", "CHECKOV", "SONARQUBE"}
-    assert storage.query_findings(deployment_id=dep.id, category="SECRET")[0].metadata_["data_origin"] == "FIXTURE"
+    secrets = storage.query_findings(deployment_id=dep.id, category="SECRET")
+    assert sorted(s.severity for s in secrets) == ["CRITICAL", "HIGH"]
+    assert secrets[0].metadata_["data_origin"] == "FIXTURE"

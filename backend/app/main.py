@@ -12,27 +12,50 @@ with the architecture documented in ``backend/app/__init__.py``:
 Routers under ``backend/app/api/`` will be mounted here as the later phases
 implement them. Nothing in this file performs scanning, normalization,
 risk scoring or explanation.
+
+Configuration
+-------------
+Settings come from :mod:`app.config`, which is the single module in XPRisk that
+reads the process environment. This module previously read ``APP_NAME``,
+``APP_ENV`` and ``DATABASE_URL`` directly from ``os.environ``; it now uses the
+validated ``AppSettings`` object instead, so a malformed value fails at startup
+rather than at the first request that happens to need it.
 """
 
 from __future__ import annotations
 
-import os
+from functools import lru_cache
 from typing import Any
 
 from fastapi import FastAPI
 
-APP_NAME = os.environ.get("APP_NAME", "XPRisk")
-APP_ENV = os.environ.get("APP_ENV", "development")
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./xprisk_dev.db")
+from app.config import AppSettings, get_app_settings
 
 
-def _database_status() -> str:
+@lru_cache(maxsize=1)
+def _sqlalchemy_engine(database_url: str):
+    """One SQLAlchemy engine per database URL, reused across health checks.
+
+    Creating an engine per request opens a fresh connection pool every time,
+    which leaks connections under repeated polling. Caching the engine keeps
+    the pool alive and is the standard FastAPI pattern.
+
+    Failures are not cached: if the database is unavailable at startup, a later
+    request should still be able to establish a connection.
+    """
+
+    from sqlalchemy import create_engine
+
+    return create_engine(database_url, pool_pre_ping=True)
+
+
+def _database_status(settings: AppSettings) -> str:
     """Return "ok" when the configured database answers ``SELECT 1``."""
 
     try:
-        from sqlalchemy import create_engine, text
+        from sqlalchemy import text
 
-        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        engine = _sqlalchemy_engine(settings.database_url)
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         return "ok"
@@ -40,16 +63,23 @@ def _database_status() -> str:
         return "unavailable"
 
 
-def create_app() -> FastAPI:
-    application = FastAPI(title=APP_NAME, version="0.1.0")
+def create_app(settings: AppSettings | None = None) -> FastAPI:
+    """Build the ASGI application.
+
+    ``settings`` is injectable so tests can supply an isolated configuration
+    instead of mutating the process environment.
+    """
+
+    resolved = settings or get_app_settings()
+    application = FastAPI(title=resolved.app_name, version="0.1.0")
 
     @application.get("/health")
     def health() -> dict[str, Any]:
         return {
             "status": "healthy",
-            "app": APP_NAME,
-            "environment": APP_ENV,
-            "database": _database_status(),
+            "app": resolved.app_name,
+            "environment": resolved.app_env,
+            "database": _database_status(resolved),
         }
 
     return application

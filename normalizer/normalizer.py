@@ -54,7 +54,35 @@ _SONARQUBE_SEVERITY = {
 }
 
 # Documented XPRisk normalization policies (not scanner-provided).
-GITLEAKS_SEVERITY_POLICY = "xprisk_policy: secret finding -> HIGH"
+#
+# Gitleaks reports no native severity, so XPRisk assigns one per rule id.
+# The table below mirrors XPRISK_GITLEAKS_SEVERITY_RULES in .env.example
+# value for value. It is a module constant rather than an env lookup so the
+# normalizer stays a pure domain package with no config dependency; Phase 9
+# makes the same table runtime-configurable.
+#
+# Verified against a real `gitleaks dir` run (Gitleaks 8.30.1) on the Phase 3
+# fixture: the `xprisk-test-secret` and `private-key` rules both fire, so
+# this table exercises two different severities on real scanner output.
+GITLEAKS_RULE_SEVERITY: dict[str, Severity] = {
+    "private-key": Severity.CRITICAL,
+    "aws-access-key": Severity.CRITICAL,
+    "aws-secret-key": Severity.CRITICAL,
+    "slack-token": Severity.CRITICAL,
+    "stripe": Severity.CRITICAL,
+    "github-pat": Severity.CRITICAL,
+    "generic-api-key": Severity.MEDIUM,
+    "xprisk-test-secret": Severity.HIGH,
+}
+
+#: Applied to any rule id absent from the table above.
+GITLEAKS_DEFAULT_SEVERITY = Severity.HIGH
+
+GITLEAKS_SEVERITY_POLICY = (
+    "xprisk_policy: rule-based severity per XPRISK_GITLEAKS_SEVERITY_RULES; "
+    f"unmapped rules default to {GITLEAKS_DEFAULT_SEVERITY.value}"
+)
+
 CHECKOV_MISSING_SEVERITY_POLICY = "xprisk_policy: missing severity -> MEDIUM"
 
 
@@ -86,11 +114,16 @@ def normalize_gitleaks(
     data_origin: str | None = None,
     now: datetime | None = None,
 ) -> XPRiskFinding:
+    # Gitleaks has no native severity, so it is derived from the rule id via
+    # the documented XPRisk policy table rather than hardcoded per finding.
+    rule = (finding.rule_id or "").strip()
+    severity = GITLEAKS_RULE_SEVERITY.get(rule.lower(), GITLEAKS_DEFAULT_SEVERITY)
+
     return XPRiskFinding(
         id=_make_id("GITLEAKS", finding.rule_id, finding.file, finding.start_line),
         tool="GITLEAKS",
         category=Category.SECRET,
-        severity=Severity.HIGH,  # XPRisk policy; Gitleaks has no native severity
+        severity=severity,
         finding_id=finding.rule_id,
         resource=finding.file,
         file=finding.file,
@@ -107,6 +140,9 @@ def normalize_gitleaks(
                 "start_line": finding.start_line,
                 "end_line": finding.end_line,
                 "severity_policy": GITLEAKS_SEVERITY_POLICY,
+                # Which policy entry produced `severity`. Kept so the
+                # explainability layer can justify the mapping later.
+                "severity_rule": rule or None,
             },
             **({"data_origin": data_origin} if data_origin else {}),
         },

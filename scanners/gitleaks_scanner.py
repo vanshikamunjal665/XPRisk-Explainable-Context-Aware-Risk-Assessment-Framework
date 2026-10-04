@@ -91,11 +91,25 @@ class GitleaksScanner:
         with tempfile.TemporaryDirectory() as tmp:
             report_path = Path(tmp) / "gitleaks.json"
             subcommand = "dir" if mode == "dir" else "detect"
+
+            # The two Gitleaks generations disagree on how the target is
+            # passed, so this cannot be one fixed argument list:
+            #
+            #   Gitleaks >= 8.19  `gitleaks dir <path>`      positional
+            #   Gitleaks <  8.19  `gitleaks detect --source=<path>`
+            #
+            # Verified against 8.30.1: passing `--source` to `dir` fails with
+            # `Error: unknown flag: --source` and exits 1, which this adapter
+            # would have reported as ScannerStatus.FAILED on every real scan.
+            if mode == "dir":
+                path_args = [str(target)]
+            else:
+                path_args = ["--source", str(target)]
+
             argv = [
                 self.executable,
                 subcommand,
-                "--source",
-                str(target),
+                *path_args,
                 "--report-format",
                 "json",
                 "--report-path",

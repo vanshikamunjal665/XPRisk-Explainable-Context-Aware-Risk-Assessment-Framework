@@ -40,14 +40,53 @@ def test_gitleaks_normalization_from_fixture():
     nf = normalize_gitleaks(findings[0], data_origin="FIXTURE", now=NOW)
     assert nf.tool == "GITLEAKS"
     assert nf.category is Category.SECRET
-    assert nf.severity is Severity.HIGH  # documented XPRisk policy
-    assert nf.finding_id == "github-pat"
+    # xprisk-test-secret -> HIGH, per XPRISK_GITLEAKS_SEVERITY_RULES.
+    assert nf.severity is Severity.HIGH
+    assert nf.finding_id == "xprisk-test-secret"
     assert nf.file == "demo-app/scenarios/insecure/secrets/fake_secrets.env"
-    assert nf.line == 12
-    assert nf.description == "GitHub Personal Access Token"
+    assert nf.line == 33
+    assert nf.description == "XPRisk labelled test-only secret (Phase 3 controlled fixture)"
     assert nf.metadata["gitleaks"]["severity_policy"].startswith("xprisk_policy")
+    assert nf.metadata["gitleaks"]["severity_rule"] == "xprisk-test-secret"
+    assert nf.metadata["gitleaks"]["tags"] == [
+        "xprisk",
+        "test-fixture",
+        "false-positive-by-design",
+    ]
     assert nf.metadata["data_origin"] == "FIXTURE"
     assert nf.id.startswith("xprisk-")
+
+
+def test_gitleaks_private_key_is_critical():
+    """A real `gitleaks dir` run also emits `private-key`; that must be CRITICAL.
+
+    Both rule ids in the fixture come from a verified Gitleaks 8.30.1 run
+    against demo-app/scenarios/insecure, so the two severity paths are
+    exercised by real scanner output rather than by hand-written values.
+    """
+    from scanners.gitleaks_scanner import parse_gitleaks_report
+
+    findings = parse_gitleaks_report((FIX / "gitleaks/secrets_detected.json").read_text())
+    assert [f.rule_id for f in findings] == ["xprisk-test-secret", "private-key"]
+
+    nf = normalize_gitleaks(findings[1], data_origin="FIXTURE", now=NOW)
+    assert nf.severity is Severity.CRITICAL
+    assert nf.line == 40
+    assert nf.metadata["gitleaks"]["severity_rule"] == "private-key"
+
+
+def test_gitleaks_unmapped_rule_falls_back_to_default():
+    """An unknown rule id must not crash and must use the documented default."""
+    nf = normalize_gitleaks(
+        GitleaksFinding(rule_id="some-unmapped-rule", description="d"), now=NOW
+    )
+    assert nf.severity is Severity.HIGH  # GITLEAKS_DEFAULT_SEVERITY
+    assert nf.metadata["gitleaks"]["severity_rule"] == "some-unmapped-rule"
+
+
+def test_gitleaks_rule_matching_is_case_insensitive():
+    nf = normalize_gitleaks(GitleaksFinding(rule_id="Private-Key"), now=NOW)
+    assert nf.severity is Severity.CRITICAL
 
 
 def test_gitleaks_missing_commit_and_date():
@@ -208,14 +247,19 @@ def test_collection_normalization_fixture_mode():
         },
     )
     normalized = normalize_collection(collection, now=NOW)
-    assert len(normalized) == 7
+    # 2 Gitleaks (xprisk-test-secret + private-key) + 2 Trivy + 2 Checkov
+    # + 2 SonarQube. The Gitleaks count follows the verified 8.30.1 run.
+    assert len(normalized) == 8
     by_cat = {}
     for nf in normalized:
         by_cat.setdefault(nf.category, []).append(nf)
-    assert len(by_cat[Category.SECRET]) == 1
+    assert len(by_cat[Category.SECRET]) == 2
     assert len(by_cat[Category.CONTAINER]) == 2
     assert len(by_cat[Category.IAC]) == 2
     assert len(by_cat[Category.SOURCE_CODE]) == 2
+    # The two secret findings must land on two different severities, which is
+    # the whole point of the rule-based Gitleaks severity policy.
+    assert sorted(f.severity.value for f in by_cat[Category.SECRET]) == ["CRITICAL", "HIGH"]
     for nf in normalized:
         assert nf.metadata["data_origin"] == "FIXTURE"
         assert nf.severity in list(Severity)

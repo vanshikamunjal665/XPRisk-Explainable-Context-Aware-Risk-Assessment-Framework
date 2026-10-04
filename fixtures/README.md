@@ -62,13 +62,59 @@ TEST 1 (no findings -> low risk -> SAFE).
 
 This is **not** a fixture. It is a real Gitleaks configuration that *extends*
 the upstream rule set with one additional regex matching XPRisk's deliberately
-fake, clearly labelled test secrets (see `demo-app/`).
+fake, clearly labelled test secrets (see `demo-app/scenarios/*/secrets/`).
 
-It exists because Gitleaks is entropy and pattern driven: a readable string
-such as `TEST_SECRET_ONLY` would **not** match any upstream rule, so the
-controlled test case would silently produce zero findings. The added rule makes
-detection deterministic while the matched value remains obviously not a real
-credential.
+It exists because Gitleaks is entropy and pattern driven, and upstream rules are
+tuned to avoid false positives on real credentials. Probed against **Gitleaks
+8.30.1**, the upstream default rule set does *not* flag obviously fake values:
 
-`fixtures/gitleaks/secrets_detected.json` remains a fixture; the `.toml` is
+| Value | Upstream verdict |
+|---|---|
+| `ghp_` + 36 chars (GitHub classic PAT) | not flagged |
+| `AKIA` + 19 chars (AWS access key id) | not flagged |
+| `xoxb-…` (Slack bot token) | not flagged |
+| `AKIAIOSFODNN7EXAMPLE` (AWS doc example) | not flagged |
+| `-----BEGIN RSA PRIVATE KEY-----` | **flagged** (`private-key`) |
+| `glpat-…` (GitLab PAT) | **flagged** (`gitlab-pat`) |
+
+So a readable placeholder such as `XPRISK_TEST_SECRET=demo-only-not-a-real-secret`
+would produce **zero** findings. The scanner would look like it worked while
+detecting nothing — the worst failure mode for an evaluation demo. The added
+rule `xprisk-test-secret` makes detection deterministic while every matched
+value stays obviously fake.
+
+### Verified behaviour
+
+Confirmed with a real `gitleaks dir` run (8.30.1):
+
+| Target | Result |
+|---|---|
+| `demo-app/scenarios/insecure` | 2 findings — `xprisk-test-secret` (L33, HIGH), `private-key` (L40, CRITICAL) |
+| `demo-app/scenarios/clean` | 0 findings |
+
+Reproduce with:
+
+```powershell
+gitleaks dir demo-app/scenarios/insecure --config fixtures/gitleaks/gitleaks.toml --report-format json --report-path gl.json --redact
+gitleaks dir demo-app/scenarios/clean     --config fixtures/gitleaks/gitleaks.toml --report-format json --report-path gl.json --redact
+```
+
+Three tool behaviours worth knowing before you interpret a scan, all confirmed
+empirically rather than assumed:
+
+1. **`[extend] useDefault = true` is required.** The bare top-level
+   `useDefault = true` form is accepted by Gitleaks 8.19+ but does **not** merge
+   the default rule set — it silently replaces it. The scan still exits 0 and
+   still writes a report; only the finding count reveals the problem
+   (2 findings vs 1).
+2. **Only the first match per rule per file is reported.** The insecure fixture
+   contains three `XPRISK_TEST_*` assignments and one PEM block, and yields
+   exactly two findings.
+3. **The separator class in the custom regex is `[ \t]`, not `\s`.** Gitleaks
+   matches against multi-line content and `\s` also matches `\n`, so
+   `\s*=\s*\S+` made the *empty* `XPRISK_TEST_SECRET=` in the clean fixture
+   match the following line, producing a false positive.
+
+`fixtures/gitleaks/secrets_detected.json` remains a fixture, but its structure
+was regenerated from the verified run above (secrets redacted). The `.toml` is
 real configuration used by real Gitleaks runs.

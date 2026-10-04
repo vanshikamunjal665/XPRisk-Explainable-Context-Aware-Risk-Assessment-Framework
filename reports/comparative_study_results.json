@@ -1,0 +1,674 @@
+[
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 25.0,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 28.75,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 35.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 40.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 32.1,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 36.915,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 44.94,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 51.36,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 32.1,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 36.915,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 44.94,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "2 real secret findings",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 51.36,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 13.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 15.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 18.6667,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 21.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 18.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 21.0833,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 25.6667,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 29.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 18.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 21.0833,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 25.6667,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "1 CRITICAL secret",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 29.3333,
+    "decision": "SAFE"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 30.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 34.5,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 42.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 48.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 32.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 36.8,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 44.8,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 51.2,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 32.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 36.8,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 44.8,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "5 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 51.2,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 42.0,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 48.3,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 58.8,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 67.2,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 45.2,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 51.98,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 63.28,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 72.32,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 45.2,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 51.98,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 63.28,
+    "decision": "WARNING"
+  },
+  {
+    "finding_set": "8 MEDIUM iac (clean)",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 72.32,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 79.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 90.85,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 81.4,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 93.61,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 81.4,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 93.61,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "24 MEDIUM iac (insecure)",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "651 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "283 CRIT/HIGH/MED/LOW container",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "development/internal",
+    "risk_score": 81.5,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "staging/internal",
+    "risk_score": 93.725,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "S (severity only)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "development/internal",
+    "risk_score": 84.65,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "staging/internal",
+    "risk_score": 97.3475,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "C (severity + category)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "development/internal",
+    "risk_score": 84.65,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "staging/internal",
+    "risk_score": 97.3475,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "production/internal",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  },
+  {
+    "finding_set": "1 CRIT secret + 24 MEDIUM iac",
+    "policy": "X (context-aware)",
+    "context": "production/internet-facing",
+    "risk_score": 100.0,
+    "decision": "BLOCK"
+  }
+]

@@ -13,7 +13,22 @@
 *.key
 *.p12
 *.pfx
-secrets/
+
+# Real secret material must never be committed.
+#
+# These patterns are deliberately ANCHORED (leading slash). An earlier,
+# unanchored `secrets/` rule here also matched the labelled Phase 3 fixture
+# directory `demo-app/scenarios/*/secrets/`, so git silently excluded those
+# files. That left the Gitleaks integration (Phase 4) with a documented scan
+# target that did not exist, and no test could catch it because the scanner
+# tests mock `subprocess.run`.
+#
+# If you add another real secret directory, list it here explicitly. Do NOT
+# replace this block with a bare `secrets/` rule.
+/secrets/
+/backend/secrets/
+/app/secrets/
+/demo-app/secrets/
 
 # --- Python ----------------------------------------------------------------
 __pycache__/
@@ -71,6 +86,12 @@ dmypy.json
 reports/*
 !reports/.gitkeep
 !reports/README.md
+
+# Phase 9 comparative study results are a tracked research artefact: small,
+# deterministic, path-free, and cited as evidence in docs/risk-model.md §9.
+# Everything else in reports/ stays ignored because it is machine-generated.
+!reports/comparative_study_results.json
+
 *.sarif
 
 # Trivy / Checkov / Gitleaks default output names
