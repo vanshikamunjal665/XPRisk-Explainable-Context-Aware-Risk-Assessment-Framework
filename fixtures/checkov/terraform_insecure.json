@@ -1,0 +1,32 @@
+[
+  {
+    "check_type": "terraform",
+    "results": {
+      "passed_checks": [],
+      "failed_checks": [
+        {
+          "check_id": "CKV_AWS_20",
+          "bc_check_id": "BC_AWS_S3_13",
+          "check": {"id": "CKV_AWS_20", "name": "S3 Bucket has an ACL defined which allows public READ access.", "category": "LOGGING"},
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "/infrastructure/scenarios/insecure/main.tf",
+          "file_line_range": [27, 31],
+          "severity": "HIGH",
+          "check_result": {"result": "FAILED"},
+          "evaluation_details": "Fixture detail, not a live result."
+        },
+        {
+          "check_id": "CKV_AWS_24",
+          "bc_check_id": "BC_AWS_0",
+          "check": {"id": "CKV_AWS_24", "name": "Ensure no security groups allow ingress from 0.0.0.0/0 to port 22", "category": "NETWORKING"},
+          "resource": "aws_security_group.insecure",
+          "file_path": "/infrastructure/scenarios/insecure/main.tf",
+          "file_line_range": [55, 61],
+          "severity": "HIGH",
+          "check_result": {"result": "FAILED"}
+        }
+      ],
+      "skipped_checks": []
+    }
+  }
+]

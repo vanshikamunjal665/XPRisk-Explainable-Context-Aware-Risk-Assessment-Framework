@@ -1,0 +1,10 @@
+[
+  {
+    "check_type": "terraform",
+    "results": {
+      "passed_checks": [],
+      "failed_checks": [],
+      "skipped_checks": []
+    }
+  }
+]
