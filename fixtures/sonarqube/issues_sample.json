@@ -1,0 +1,27 @@
+{
+  "total": 2,
+  "p": 1,
+  "ps": 500,
+  "paging": {"pageIndex": 1, "pageSize": 500, "total": 2},
+  "issues": [
+    {
+      "key": "TEST-1",
+      "rule": "python:S2068",
+      "severity": "CRITICAL",
+      "component": "xprisk-demo-app:demo-app/scenarios/insecure/code/insecure_code.py",
+      "line": 34,
+      "message": "Make sure that this hardcoded password is safe here. (fixture)",
+      "type": "VULNERABILITY",
+      "status": "OPEN"
+    },
+    {
+      "key": "TEST-2",
+      "rule": "python:S1192",
+      "severity": "MINOR",
+      "component": "xprisk-demo-app:demo-app/scenarios/insecure/code/insecure_code.py",
+      "message": "Define a constant instead of duplicating this literal 3 times. (fixture)",
+      "type": "CODE_SMELL",
+      "status": "CONFIRMED"
+    }
+  ]
+}

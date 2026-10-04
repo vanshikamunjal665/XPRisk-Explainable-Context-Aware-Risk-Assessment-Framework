@@ -1,0 +1,22 @@
+# XPRisk Phase 3 - INTENTIONALLY VULNERABLE container fixture.
+#
+# ###########################################################################
+# #  CONTROLLED SCANNER TEST CASE FOR TRIVY. DO NOT DEPLOY.                #
+# #                                                                        #
+# #  The base image is deliberately an old, end-of-life Python so that      #
+# #  Trivy reports many known CVEs against its OS and Python packages.      #
+# #  This image exists only as a scanner target; it is never run in CI/CD.  #
+# ###########################################################################
+#
+# Expected Trivy behaviour: CRITICAL/HIGH OS and library CVEs for
+# Debian / Python 3.6 era packages (the base image is end-of-life and
+# no longer receives security updates).
+
+FROM python:3.6-slim
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+CMD ["python", "-m", "app.main"]

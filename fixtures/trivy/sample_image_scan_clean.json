@@ -1,0 +1,11 @@
+{
+  "Metadata": {"data_origin": "FIXTURE"},
+  "Results": [
+    {
+      "Target": "python:3.12-slim-bookworm (debian 12)",
+      "Class": "os-pkgs",
+      "Type": "debian",
+      "Vulnerabilities": []
+    }
+  ]
+}
