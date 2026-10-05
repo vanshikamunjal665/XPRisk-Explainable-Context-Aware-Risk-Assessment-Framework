@@ -137,48 +137,85 @@ backend/app  ->  explainability  ->  risk_engine  ->  normalizer
   them reads `os.environ` or imports `pydantic_settings`.
 - Consequences: the risk model is testable without a server or a database; the
   scanners can be replaced without touching the risk engine.
-- The dashboard currently calls the storage service and the engine directly
-  rather than over HTTP, so "deployable independently" is intended but not yet
-  delivered. That boundary is Phase 13.
+- The dashboard calls the risk engine and storage directly rather than over HTTP,
+  so "deployable independently" is delivered for the API (`POST /scan` runs with
+  no Streamlit involved) but not yet consumed by the dashboard. That is
+  deliberate: engine-binding is what lets the demo run with no server, no
+  database and no Docker.
 
 Two further separations are deliberate, and both are specified explicitly:
 
 | Separation | Why |
 |---|---|
-| Scanner execution vs finding normalization | Parser logic is unit testable without running any security tool. A scanner bug cannot corrupt the risk model. Planned as `scanner_service` / `normalization_service` in Phase 12; today the split is the package boundary `scanners/` vs `normalizer/`. |
-| `schemas/` (Pydantic) vs `models/` (SQLAlchemy) | The API contract cannot be changed silently by a database migration. `models/` is built; `schemas/` is Phase 13. |
+| Scanner execution vs finding normalization | Parser logic is unit testable without running any security tool. A scanner bug cannot corrupt the risk model. The split is the package boundary `scanners/` vs `normalizer/`. |
+| `schemas/` (Pydantic) vs `models/` (SQLAlchemy) | The API contract cannot be changed silently by a database migration. Both are built; `schemas/scan.py` types `POST /scan` without importing anything from `models/`. |
 
 ## 5. Workflow
 
-**Target pipeline.** Steps 2, 3, 5 and 7 run today. Steps 1, 4, 6 and 8 are
-Phase 12-13 and are marked below — read the markers, not the verbs.
+**Target pipeline.** Every step below now runs. The table still marks each step
+with the package that implements it, because "done" is a weaker claim than
+"reachable from a single call" and that distinction is the whole point of §5.1.
 
 | # | Step | Status |
 |---|---|---|
-| 1 | A deployment is requested: a commit, a branch, an environment, an exposure flag. | Phase 12 |
+| 1 | A deployment is requested: a commit, a branch, an environment, an exposure flag. | **done** (`POST /scan`, or `ScanService.assess` directly) |
 | 2 | The enabled scanners are triggered and a status is recorded per tool (`SUCCESS`, `FAILED`, `UNAVAILABLE`, `SKIPPED`) plus a duration. **One failing tool never fails the scan.** | **done** (`scanners/`) |
 | 3 | Each tool's native JSON is converted into canonical `NormalizedFinding` objects, preserving tool-specific fields under `metadata`. | **done** (`normalizer/`) |
-| 4 | `storage_service` persists the `Deployment` and its `Finding` rows. | **implemented, never called** |
+| 4 | `storage_service` persists the `Deployment` and its `Finding` rows. | **done** (called by `scan_service`) |
 | 5 | `risk_engine` computes per-finding risk, aggregates it, normalizes to 0-100 through a piecewise-linear curve, applies a bounded context uplift, and maps the result through configurable thresholds. | **done** (`risk_engine/`) |
-| 6 | Every individual contribution is persisted to `risk_factors`, which is what would make historical explanations reproducible. | **implemented, never called** |
+| 6 | Every individual contribution is persisted to `risk_factors`, which is what makes historical explanations reproducible. | **done** (called by `scan_service`) |
 | 7 | `explainability` ranks the contributions into a human-readable rationale and actionable remediation. | **done** (`explainability/`) |
-| 8 | FastAPI serves the result; Streamlit renders it. | Streamlit only; FastAPI is `/health` |
+| 8 | FastAPI serves the result; Streamlit renders it. | `POST /scan` and `GET /health`; Streamlit reads the engine directly |
 
-### What "implemented, never called" means
+### 5.1 `scan_service`: the step that was missing
 
-Steps 4 and 6 are the important caveat. `StorageService` really does create
-deployments and write findings and risk factors — and **nothing outside
-`tests/test_storage.py` ever asks it to.** There is no `scan_service` to compose
-the pipeline, so:
+Until Phase 12, every package above was individually reachable and none of them
+were joined together. `StorageService.create_deployment`, `.save_findings` and
+`.save_risk_factors` existed and were correct, but the only caller was
+`tests/test_storage.py`. The dashboard composed the pipeline in memory and threw
+the result away, so `xprisk_dev.db` stayed at zero rows and the *Deployment
+history* view was permanently empty — an empty screen that looked like a broken
+feature rather than a missing producer.
 
-- `xprisk_dev.db` contains 0 rows in all three tables.
-- The dashboard's *Deployment history* view always reports no deployments.
-- The assessment is computed, rendered and discarded.
+`backend/app/services/scan_service.py` closes that gap with one method,
+`ScanService.assess`, and `backend/app/api/scan.py` exposes it as `POST /scan`:
 
-So the risk model, the scanners, the normalizer and the explainability engine are
-all reachable and demonstrable, but the thing that would join them into one
-durable pipeline is Phase 12 work that has not been written. Do not describe the
-target pipeline above as though it runs end to end.
+```python
+outcome = ScanService().assess(ScanRequest(
+    branch="main",
+    environment="production", exposure="internet-facing",
+    gitleaks=True,
+    fixtures={"gitleaks": "fixtures/gitleaks/secrets_detected.json"},
+))
+outcome.risk_score, outcome.decision, outcome.deployment_id
+# 51.36, 'WARNING', 1
+```
+
+The same two findings score **36.915** in `development/internal` and **51.36** in
+`production/internet-facing`. The dashboard rounds to one decimal, so it shows
+`36.9` and `51.4`; the API returns the exact value.
+
+Three properties are deliberate and tested (`tests/test_scan_endpoint.py`):
+
+- **One failing tool never fails the scan.** Each tool reports its own status. A
+  missing binary, a non-zero exit or a malformed report is recorded against that
+  tool and the others still contribute. A deployment row is always created, so a
+  scan that found nothing is still a fact worth storing.
+- **The breakdown is stored, not just the score.** Every contribution goes into
+  `risk_factors` as a *raw risk value*, not a share of the total. A share is
+  derivable by dividing by `total_raw`; raw risk is not recoverable from a share,
+  so it is the one worth keeping — that is what makes a past explanation
+  reproducible after the settings change.
+- **The request cannot smuggle fixtures past a caller asking for a real scan.** A
+  fixture path supplied for a scanner that was not selected is a 422, not a
+  silently recorded result.
+
+The dashboard still reads the engine directly rather than calling the API. That
+is a deliberate shortcut: it keeps the demo working with no server, no database
+and no Docker. It also means the dashboard and the API are two callers of one
+scoring function, and `test_the_api_matches_the_dashboard_for_the_same_findings`
+asserts they agree to the decimal — otherwise the number on screen would depend
+on which view was open.
 
 ## 6. Technology stack
 
@@ -208,11 +245,14 @@ XPRisk-Explainable-Context-Aware-Risk-Assessment-Framework/
 │   ├── app/
 │   │   ├── main.py               FastAPI application factory
 │   │   ├── config.py             Typed settings (pydantic-settings)
-│   │   ├── api/                  HTTP routers (Phase 13 - only __init__.py so far)
+│   │   ├── api/                  HTTP routers
+│   │   │   └── scan.py           POST /scan
 │   │   ├── models/               SQLAlchemy ORM models
 │   │   │   └── models.py         Deployment, Finding, RiskFactor
 │   │   ├── schemas/              Pydantic request/response models
+│   │   │   └── scan.py           ScanContext, ScanRequest, ScanResponse
 │   │   ├── services/             Orchestration layer
+│   │   │   ├── scan_service.py   The end-to-end use case
 │   │   │   └── storage_service.py
 │   │   └── database/
 │   │       ├── database.py       Engine, session factory
@@ -472,10 +512,15 @@ Steps 1-4 are the ones worth the time. Step 5 is there because the question will
 be asked anyway, and the honest answer is stronger than a hidden number.
 
 **Current state, stated plainly.** The dashboard has two sidebar views —
-*Assessment* and *Deployment history*. It does not yet read the backend over
-HTTP; it calls `StorageService` and the risk engine directly. There is no
-`api_client.py`, and `components/` and `pages/` are placeholders. The HTTP
-boundary is Phase 13 work. See §18.
+*Assessment* and *Deployment history*. It does not read the backend over HTTP; it
+calls `StorageService` and the risk engine directly. There is no `api_client.py`,
+and `components/` and `pages/` are placeholders. `POST /scan` now exists, so the
+HTTP path is available to it, but using it would make the demo depend on a running
+server — so the dashboard was deliberately left engine-bound. See §18, gap 4.
+
+*Deployment history* was permanently empty until `scan_service` landed (§5.1).
+Run `POST /scan` once (§17) and refresh the view: the deployment, its findings and
+every contribution are there.
 
 No dashboard value is hardcoded either way: every score, decision and
 explanation is rendered from what the engine produced for the findings on screen.
@@ -590,14 +635,44 @@ per-scanner Docker invocations that already work.
 
 ## 17. Example workflow
 
-**The HTTP API is not the interface yet.** `POST /scan`, `GET /risk/{id}`,
-`GET /explanation/{id}` and `POST /risk/evaluate` do not exist; calling them
-returns 404. Orchestration services and routers are Phases 12-13. An earlier
-version of this section documented all four as though they worked.
+**One endpoint exists: `POST /scan`.** `GET /risk/{id}`,
+`GET /explanation/{id}` and `POST /risk/evaluate` do not; calling them returns
+404. An earlier version of this section documented all four as though they
+worked, which is worse than documenting none.
 
-The equivalent workflow today runs through the two scripts in the repository
-root. This is the one to demonstrate, because it prints what the model actually
-does rather than a summary of what it should do.
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --port 8000
+```
+
+Then, from another terminal:
+
+```powershell
+# Replays recorded Gitleaks output, scores it, explains it and stores it.
+# The response carries the persisted deployment_id.
+$body = @{
+  branch    = "main"
+  commit_id = "a1b2c3d4"
+  context   = @{ environment = "production"; exposure = "internet-facing"; change_status = "new" }
+  gitleaks  = $true
+  fixtures  = @{ gitleaks = "fixtures/gitleaks/secrets_detected.json" }
+}
+Invoke-RestMethod -Uri http://127.0.0.1:8000/scan -Method Post `
+  -ContentType "application/json" -Body ($body | ConvertTo-Json -Depth 5)
+```
+
+Returns `201` with `risk_score`, `decision`, `severity_breakdown`, the full
+`explanation` and `recommendation`, and the `deployment_id` that was written.
+Interactive docs are at `http://127.0.0.1:8000/docs`. Run it with no body and you
+get a real, persisted, zero-finding deployment — a clean scan is a recorded
+result, not a no-op.
+
+Drop `fixtures` and set `gitleaks = $true` to execute the real tool instead, if
+it is installed (§8). Every adapter degrades to `UNAVAILABLE` when its tool is
+missing, and a 201 still comes back with the failure reported per tool.
+
+The scripts in the repository root remain the better thing to demonstrate,
+because they print what the model actually does rather than a summary of what it
+should do:
 
 ```powershell
 # 1. The six controlled scenarios, with the real outcome of each
@@ -614,19 +689,10 @@ prints the two rows where the result contradicts the scenario name, which is
 worth showing rather than hiding (see §18, gap 1).
 
 `demo.cmd` (§13) runs both scripts and then opens the dashboard, in that order.
+The dashboard needs no server, no database and no Docker — it reads the risk
+engine directly, so it is unaffected by the API work.
 
-The same pipeline over real scanner output is reachable through the dashboard,
-which drives the `ScannerService` the API will drive:
-
-```powershell
-# Terminal 1
-.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --port 8000
-# Terminal 2
-.\.venv\Scripts\streamlit.exe run dashboard/app.py
-```
-
-For a live scanner run, with the tool installed (§8 — every tool is optional and
-every adapter degrades to `UNAVAILABLE` without it):
+For a live scanner run, with the tool installed (§8):
 
 ```powershell
 # Gitleaks 8.30.1 -> 2 findings
@@ -644,7 +710,7 @@ needs to be installed to demo it.
 
 ## 18. Project status
 
-Current delivery: **Phases 1-11 complete**, Phase 14 partial, of the planned
+Current delivery: **Phases 1-14 complete except the dashboard**, of the planned
 1-14.
 
 | Phase | Component | Status |
@@ -660,25 +726,34 @@ Current delivery: **Phases 1-11 complete**, Phase 14 partial, of the planned
 | 9 | Risk-scoring algorithm | Complete |
 | 10 | SAFE / WARNING / BLOCK thresholds | Complete |
 | 11 | Explainability engine | Complete |
-| 12 | Orchestration services | Not started |
-| 13 | FastAPI routers | Partial (`/health` only) |
+| 12 | Orchestration services | Complete (`scan_service` composes scan → normalize → score → explain → persist) |
+| 13 | FastAPI routers | Partial (`GET /health` and `POST /scan`; 5 routers planned) |
 | 14 | Streamlit dashboard | Partial (2 views, engine-bound) |
 | 15 | GitHub Actions CI/CD | Reference stub, inert |
 | 16-23 | Gate, historical analytics, performance, Docker, cloud, polish | Planned |
 
+Phase 12 was the last structural gap. Before it, the storage layer was correct
+but unreachable — nothing outside `tests/test_storage.py` called it, so
+`xprisk_dev.db` held zero rows and the dashboard's *Deployment history* view was
+permanently empty. `scan_service` is now the single caller, and
+`tests/test_service_layer.py` asserts it stays that way.
+
 ### Promised in the source, not built
 
-Three packages document architecture in the present tense that does not exist
-yet. They now say "planned" explicitly, and the claims are guarded:
+Three packages used to document architecture in the present tense that did not
+exist. They now mark each item as done or planned, and the claims are guarded:
 
-| Documented as built | Reality |
-|---|---|
-| `backend/app/api/__init__.py` lists 6 routers, "all mounted by `main`" | Package is empty; 0 routers, only `/health` |
-| `backend/app/services/__init__.py` lists 6 services | Only `storage_service` exists |
-| `backend/app/schemas/__init__.py` describes the API contract | Package is empty; no schema defined |
+| Package | Before | Now |
+|---|---|---|
+| `backend/app/api/__init__.py` listed 6 routers, "all mounted by `main`" | Empty package; 0 routers | `scan` router done and mounted; the other 5 marked planned, each asserted to 404 |
+| `backend/app/services/__init__.py` listed 6 services | Only `storage_service` existed | `scan_service` and `storage_service` done; the other 4 marked planned |
+| `backend/app/schemas/__init__.py` described the API contract | Empty package | `scan.py` done; the `risk/evaluate` schemas marked planned |
 
-`tests/test_backend_app.py` asserts the router set and the 404s;
-`tests/test_service_layer.py` asserts which services and schemas exist.
+The guards are inverted where the gap has closed.
+`tests/test_service_layer.py::test_the_write_path_is_now_reachable` asserts
+production code calls all three write methods, so if persistence ever becomes
+unreachable again the suite fails — which is exactly the state this project was
+in before Phase 12, and the state nobody noticed.
 
 ### Verified against real tools
 
@@ -702,14 +777,16 @@ See [`demo-app/README.md`](demo-app/README.md),
   Checkov's did.
 - **PostgreSQL.** SQLite only. The schema and ORM are engine-agnostic and this is
   a `DATABASE_URL` change, but no live PostgreSQL run has been performed.
-- **The HTTP API.** No routers exist beyond `/health`, so there is no
-  `POST /scan` or `GET /risk/{id}`. The full pipeline is exercised by the scripts
-  in the root directory rather than over HTTP.
+- **The HTTP API beyond one endpoint.** `POST /scan` exists and is tested, but
+  `GET /risk/{id}`, `GET /explanation/{id}`, `GET /deployments` and
+  `POST /risk/evaluate` do not, so a stored assessment cannot be read back over
+  HTTP. The database is the only way to see one. The full pipeline is also
+  exercised by the scripts in the root directory, which is what §17 demonstrates.
 
 ### Reproducing the risk model
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q   # 324 tests
+.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q   # 384 tests, 7 xfailed
 .\.venv\Scripts\python.exe run_integration_scenarios.py       # the six scenarios
 .\.venv\Scripts\python.exe xprisk_comparative.py              # comparative study
 ```
@@ -735,15 +812,15 @@ where a single CRITICAL secret scores 29.3 and lands in SAFE.
    findings) score 100.0 in every context, so the score carries no information
    for them — see §7.5.
 4. **The dashboard reads the engine and database directly** rather than over
-   HTTP, and runs assessments from `fixtures/`. The HTTP boundary is Phase 13
-   work.
-5. **No runnable path writes to the database.** `StorageService` implements
-   `create_deployment`, `save_findings` and `save_risk_factors`, and only
-   `tests/test_storage.py` calls them. There is no `scan_service` to compose
-   scan → normalize → score → persist, so `xprisk_dev.db` holds 0 rows and the
-   dashboard's *Deployment history* view is always empty. The persistence layer
-   is tested but unexercised in the product. This is the largest structural gap
-   and it is Phase 12 work — see §5.
+   HTTP, and runs assessments from `fixtures/`. `POST /scan` now exists, so an
+   API client could replace this — but the dashboard was deliberately left
+   engine-bound so the demo needs no server, no database and no Docker. Both
+   paths call the same scoring function, and a test asserts they agree.
+5. **A stored assessment cannot be read back over HTTP.** `POST /scan` writes a
+   deployment, its findings and every contribution, but there is no
+   `GET /deployments/{id}` or `GET /risk/{id}`. The database is currently the only
+   reader, which means the read API is the natural next slice — the write side is
+   done and tested.
 6. **The `sonarqube/` fixtures are the only invented data left.** Every other
    fixture is genuine scanner output, regenerated by
    `tools/regenerate_fixtures.py` and `tools/regenerate_trivy_fixtures.py`.
@@ -759,8 +836,8 @@ where a single CRITICAL secret scores 29.3 and lands in SAFE.
 
 ### Three defects found while verifying the run instructions
 
-Both were found by executing the commands in this README rather than reading
-them, and both are now covered by tests.
+All three were found by executing the commands in this README rather than reading
+them, and all three are now covered by tests.
 
 - **Checkov silently dropped all 24 findings** when XPRisk was started without
   activating the virtual environment. Every command in this README uses
@@ -779,9 +856,10 @@ them, and both are now covered by tests.
   passed, because no test imported the module at all. Fixed, and
   `tests/test_backend_app.py` now imports it the way uvicorn does.
 - **§17 documented four endpoints that do not exist.** `POST /scan`,
-  `GET /risk/{id}`, `GET /explanation/{id}` and `POST /risk/evaluate` all return
-  404. A copy-paste of that section produced four errors. It now shows the two
-  root scripts that do work, and states the HTTP API is not the interface yet.
+  `GET /risk/{id}`, `GET /explanation/{id}` and `POST /risk/evaluate` all returned
+  404. A copy-paste of that section produced four errors. It now shows one
+  working `POST /scan` request and states plainly that the other three do not
+  exist.
 
 ### The fixtures are real scans
 
@@ -861,19 +939,27 @@ enforces on others:
 
 ### Remaining
 
-- [ ] Orchestration services and API routers, so the pipeline runs over HTTP
-      (Phases 12-13). This is the largest remaining gap.
+- [ ] Read-side API: `GET /deployments`, `GET /deployments/{id}`,
+      `GET /risk/{id}`, `GET /explanation/{id}` (Phase 13). The write side is
+      done — `POST /scan` persists a full assessment — so a stored result can
+      only be read from the database today.
 - [ ] Dashboard over HTTP with five views: overview, findings, risk analysis,
-      explanations, trends (Phase 14)
+      explanations, trends (Phase 14). `POST /scan` now exists, so the write
+      path is available; the dashboard is engine-bound on purpose (§18, gap 4).
 - [ ] SonarQube against a live instance (closes the last unverified adapter)
 - [ ] Live PostgreSQL run (currently SQLite only)
-- [ ] GitHub Actions pipeline running the full scan chain (Phase 15)
+- [ ] GitHub Actions pipeline running the full scan chain (Phase 15). This is
+      what would earn the "CI/CD" half of the title — `POST /scan` is now a
+      single call a gate could make, which it previously had nothing to call.
 - [ ] XPRisk as an enforced deployment gate: BLOCK stops the pipeline (Phase 16)
 - [ ] Historical analytics: newly introduced vs resolved findings (Phase 17)
 - [ ] Calibration study: fit the weights to labelled incident data rather than
       asserting them (Phase 19). This is what would turn the risk model from a
       documented heuristic into a validated metric — see
       [`docs/risk-model.md`](docs/risk-model.md) §8.
+- [ ] A severity floor, so a single CRITICAL finding cannot score SAFE. Additive
+      scoring structurally cannot fix this; the repair is a new component, not a
+      new constant — see [`docs/risk-model.md`](docs/risk-model.md) §7.2.
 - [ ] Performance measurement report (Phase 20)
 - [ ] Containerize backend, dashboard and PostgreSQL (Phase 21)
 - [ ] Cloud deployment (Phase 22)

@@ -35,7 +35,7 @@ from fastapi.testclient import TestClient
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 #: Paths README sections 12 and 17 tell a reader to open.
-DOCUMENTED_ROUTES = frozenset({"/health"})
+DOCUMENTED_ROUTES = frozenset({"/health", "/scan"})
 
 #: FastAPI mounts these on every application whether or not they are wanted.
 FRAMEWORK_ROUTES = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
@@ -148,19 +148,35 @@ def test_readme_run_command_is_the_one_that_works():
 # -- routes ------------------------------------------------------------------
 
 
-def test_only_health_is_registered():
-    """The application exposes /health and nothing that is not implemented.
+def test_only_implemented_routes_are_registered():
+    """The application exposes what it implements and nothing else.
 
-    Phase 13 routers do not exist yet. This test is the guard that stops a
-    half-written router from being mounted, and the reason README section 17
-    lists no working API call. The documentation routes FastAPI adds itself are
-    excluded, since they are not XPRisk code.
+    This is the guard that stops a half-written router from being mounted, and it
+    is why README section 17 can list a working call. The documentation routes
+    FastAPI adds itself are excluded, since they are not XPRisk code.
+
+    The OpenAPI schema is used rather than ``app.routes`` because FastAPI keeps
+    an included router as a nested ``_IncludedRouter`` object instead of
+    flattening its routes into the application. ``app.routes`` therefore shows
+    ``None`` for any mounted router, which would have made this assertion pass
+    for the wrong reason. ``openapi()`` is public API and flattens correctly.
     """
 
     from backend.app.main import app
 
-    paths = {r.path for r in app.routes if getattr(r, "path", "")}
+    paths = set(app.openapi()["paths"])
     assert paths - FRAMEWORK_ROUTES == DOCUMENTED_ROUTES
+
+
+def test_get_on_a_post_only_route_is_rejected_with_405():
+    """Method mismatch must be distinguishable from "not found".
+
+    Without this, a caller who typed the wrong verb would get a 404 and conclude
+    the endpoint does not exist. ``tests/test_scan_endpoint.py`` covers the
+    201 happy path.
+    """
+
+    assert _client().get("/scan").status_code == 405
 
 
 def test_health_reports_status_and_database():
@@ -214,7 +230,14 @@ def test_settings_are_injectable_not_read_from_the_environment(monkeypatch):
 def test_openapi_schema_is_served():
     response = _client().get("/openapi.json")
     assert response.status_code == 200
-    assert "/health" in response.json()["paths"]
+    paths = response.json()["paths"]
+    assert "/health" in paths
+    assert "/scan" in paths
+    # The body is required even though every field in it has a default. That is
+    # deliberate: a CI webhook that fires with no body would otherwise create a
+    # real zero-finding deployment eight times a day, and nothing would look
+    # wrong. Making the caller state what it meant is the safer default.
+    assert paths["/scan"]["post"]["requestBody"]["required"] is True
 
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc"])
@@ -224,13 +247,15 @@ def test_interactive_docs_are_served(path):
 
 @pytest.mark.parametrize(
     "path",
-    ["/scan", "/findings", "/risk", "/risk/evaluate", "/explanation", "/trends", "/deployments"],
+    ["/findings", "/risk", "/risk/evaluate", "/explanation", "/trends", "/deployments"],
 )
-def test_documented_but_unimplemented_routes_return_404(path):
-    """README section 17 previously documented these; they do not exist.
+def test_planned_but_unbuilt_routes_return_404(path):
+    """These appear in the router table in ``backend/app/api/__init__.py``.
 
-    They are Phase 12-13 work. Asserting the 404 keeps the gap explicit and
-    makes it impossible for a half-implemented endpoint to pass as done.
+    They are Phase 13 work. Asserting the 404 keeps the gap explicit and makes
+    it impossible for a half-implemented endpoint to pass as done. ``/scan`` was
+    removed from this list when it was built — see
+    ``tests/test_scan_endpoint.py``.
     """
 
     assert _client().get(path).status_code == 404

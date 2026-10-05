@@ -186,16 +186,18 @@ def _render_history(data: DashboardData) -> None:
     rows = history_table(deployments)
     if not rows:
         st.info(
-            "No stored deployments. This is expected today, not a failure to load."
+            "No stored deployments yet. This is not a failure to load — the "
+            "history is genuinely empty."
         )
         st.caption(
-            "An empty history is the correct state for this build: no runnable path "
-            "writes to the database. `StorageService` can create deployments, findings "
-            "and risk factors, and `tests/test_storage.py` proves it does, but nothing "
-            "outside the test suite calls those write methods — the orchestration "
-            "service that would (`scan_service`) is Phase 12 and has not been written. "
-            "Assessments run in the *Assessment* view are computed, shown and "
-            "discarded. See README section 5, 'implemented, never called'."
+            "This view reads the deployments table, and nothing has written to it "
+            "yet. Assessments run in the *Assessment* view are computed and shown "
+            "but not stored. To populate it, call `POST /scan` once "
+            "(README section 17) or run `ScanService.assess` from a script — "
+            "`backend/app/services/scan_service.py` is what writes the deployment, "
+            "its findings and every contribution. It was previously unreachable, "
+            "which is why this view used to be empty permanently; see README "
+            "section 5.1."
         )
         return
 

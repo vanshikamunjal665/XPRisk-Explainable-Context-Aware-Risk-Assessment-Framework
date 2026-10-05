@@ -1,32 +1,27 @@
-"""Tests for the service and schema layers (Phase 12/13 groundwork).
+"""Tests for the service and schema layers (Phases 12-13).
 
 Why this file exists
 --------------------
 Three packages under ``backend/app/`` documented their intended contents in the
-present tense, as though they had been built:
+present tense, as though they had been built: ``api/__init__.py`` listed six
+routers "all mounted by main", ``services/__init__.py`` listed six services as
+though all six existed, and ``schemas/__init__.py`` described a validation
+policy over schemas that were never defined. Nothing caught it, because a
+package docstring is not executable.
 
-* ``api/__init__.py`` listed six routers and said they were "all mounted by
-  ``backend.app.main``". The package is empty.
-* ``services/__init__.py`` listed six services as if all six existed. Only
-  ``storage_service`` does.
-* ``schemas/__init__.py`` described a detailed validation policy over schemas
-  that were never defined. The package is empty.
+These tests now do two jobs: they assert which modules exist, so a planned
+module cannot be described as built, and they assert the write path is *used*,
+because that gap was invisible until it was stated.
 
-Nothing caught this, because a package docstring is not executable and no test
-asserted anything about it. The docstrings now say "planned", and these tests
-keep them honest.
+Status
+------
+Phase 12-13 has since landed the minimum viable API. ``scan_service`` composes
+the pipeline, ``api/scan.py`` exposes ``POST /scan`` and ``schemas/scan.py``
+validates it. The expected sets below were updated and the "no runnable path
+writes to the database" assertions were removed, because they are no longer true
+and keeping them would have been the same overclaiming in reverse.
 
-Why this matters more than a docstring nit
-------------------------------------------
-The write half of the persistence layer is unreachable. ``create_deployment``,
-``save_findings`` and ``save_risk_factors`` are called only from the test suite,
-because the service that would compose them (``scan_service``) does not exist.
-So ``xprisk_dev.db`` has zero rows and the dashboard's *Deployment history*
-view is permanently empty. That is a real product gap, and it is invisible
-unless something states it.
-
-When Phase 12 lands, the assertions below flip: the expected sets are named
-``EXPECTED_SERVICES`` and ``EXPECTED_ROUTERS`` so there is one place to edit.
+What is still planned: the other five services and the other five routers.
 """
 
 from __future__ import annotations
@@ -41,17 +36,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_APP = REPO_ROOT / "backend" / "app"
 
-#: Services that exist today. Adding one here is the Phase 12 signal.
-EXPECTED_SERVICES = {"storage_service"}
+#: Services that exist. The documented-but-unbuilt five are listed in
+#: ``backend/app/services/__init__.py`` as "planned".
+EXPECTED_SERVICES = {"scan_service", "storage_service"}
 
-#: Routers that exist today. Empty by design: Phase 13 owns this set.
-EXPECTED_ROUTERS: set[str] = set()
+#: Routers that exist. Phase 13 owns the rest of the table.
+EXPECTED_ROUTERS = {"scan"}
 
-#: Pydantic schemas that exist today. Empty: nothing is exposed over HTTP yet.
-EXPECTED_SCHEMAS: set[str] = set()
-
-#: The write methods that no production code calls.
-UNUSED_WRITE_METHODS = ("create_deployment", "save_findings", "save_risk_factors")
+#: Schema modules that exist.
+EXPECTED_SCHEMAS = {"scan"}
 
 
 # -- what exists -------------------------------------------------------------
@@ -70,25 +63,30 @@ def _modules(package: str) -> set[str]:
     }
 
 
-def test_only_the_implemented_service_exists():
+def test_only_the_implemented_services_exist():
+    """An unbuilt module must not be described as if it exists."""
+
     assert _modules("services") == EXPECTED_SERVICES
 
 
-def test_no_routers_exist_yet():
+def test_only_the_implemented_routers_exist():
     assert _modules("api") == EXPECTED_ROUTERS
 
 
-def test_no_schemas_exist_yet():
+def test_only_the_implemented_schema_modules_exist():
     assert _modules("schemas") == EXPECTED_SCHEMAS
 
 
-def test_storage_service_is_importable_and_complete():
-    """The one service that exists must be a real one, not a stub."""
+def test_the_services_are_real_not_stubs():
+    """Whatever exists must be a working implementation."""
 
+    from backend.app.services.scan_service import ScanService
     from backend.app.services.storage_service import StorageService
 
-    for method in UNUSED_WRITE_METHODS:
+    for method in ("create_deployment", "save_findings", "save_risk_factors"):
         assert callable(getattr(StorageService, method)), method
+
+    assert callable(ScanService.assess)
 
 
 # -- the docstrings must not overclaim ---------------------------------------
@@ -126,22 +124,49 @@ def test_unbuilt_packages_say_so(package, planned_word):
     )
 
 
-def test_api_docstring_does_not_claim_routers_are_mounted():
+def test_api_docstring_does_not_claim_unbuilt_routers_are_mounted():
+    """The "all mounted by" phrasing is what made the original docstring a lie."""
+
     text = _docstring("api")
-    # "all mounted by" is the phrasing that made this a lie.
-    assert "all mounted by" not in text.lower()
-    assert "none implemented" in text.lower()
+    assert "all mounted by" not in text
+    assert "planned" in text
 
 
-def test_service_docstring_records_the_absent_write_path():
-    """The most important sentence in the codebase, so it is asserted."""
+def test_service_docstring_no_longer_claims_an_absent_write_path():
+    """The stale warning must be removed once persistence is live.
 
-    text = _docstring("services")
-    assert "no runnable path writes to the database" in text
-    assert "only from" in text  # attributes the callers to the test suite
+    An assertion in this file used to require the sentence "no runnable path
+    writes to the database". That sentence was accurate when nothing called the
+    write methods and became false the moment ``scan_service`` landed. Leaving it
+    in would have been the same overclaiming the file exists to prevent, just
+    pointing the other way.
+    """
+
+    assert "no runnable path writes to the database" not in _docstring("services")
 
 
-# -- the write path is unreachable, and that is documented -------------------
+def test_the_write_path_is_now_reachable():
+    """Inverted from the assertion that used to require the gap.
+
+    Persistence is live, so production code must call the write methods. If this
+    ever stops being true the dashboard's history view silently goes empty again
+    — which is exactly the failure this file was written to prevent.
+    """
+
+    write_methods = ("create_deployment", "save_findings", "save_risk_factors")
+    callers = {
+        method: [p for p in _production_sources() if _calls_method(p, method)]
+        for method in write_methods
+    }
+    uncalled = sorted(m for m, paths in callers.items() if not paths)
+
+    assert not uncalled, (
+        f"nothing calls {uncalled} any more. Persistence is unreachable again, so "
+        "the dashboard's Deployment history view will be permanently empty."
+    )
+
+
+# -- helpers for the write-path assertions -----------------------------------
 
 
 def _production_sources() -> list[Path]:
@@ -168,73 +193,34 @@ def _calls_method(path: Path, method: str) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             func = node.func
-            name = func.attr if isinstance(func, ast.Attribute) else getattr(
-                func, "id", ""
+            name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
             )
             if name == method:
                 return True
     return False
 
 
-@pytest.mark.parametrize("method", UNUSED_WRITE_METHODS)
-def test_write_methods_have_no_production_caller_yet(method):
-    """Documents the gap instead of hiding it.
+def test_the_dashboard_history_view_has_a_producer():
+    """The history view reads deployments, so something must write them.
 
-    This passes while the method is uncalled and the reason is documented. It
-    starts failing the moment production code calls it, which is the signal to
-    delete the assertion and remove gap 5 from README section 18.
+    This is the inverse of the original gap assertion. Before ``scan_service``
+    existed, the only writers were in the test suite and the view was
+    permanently empty — an empty screen that looked like a broken feature rather
+    than a missing producer.
     """
 
-    callers = [p for p in _production_sources() if _calls_method(p, method)]
+    import dashboard.app as app_module
 
-    if not callers:
-        assert "no runnable path writes to the database" in _docstring("services")
-        return
-
-    pytest.fail(
-        f"{method} now has a production caller: "
-        f"{[str(p.relative_to(REPO_ROOT)) for p in callers]}. Persistence is live. "
-        "Drop this assertion and update README section 5 and section 18 gap 5."
+    source = Path(app_module.__file__).read_text(encoding="utf-8")
+    assert "Deployment history" in source, (
+        "the history view was removed; if that was deliberate, update README "
+        "section 13 and section 18 together"
     )
-
-
-def test_readme_records_the_persistence_gap():
-    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    assert "No runnable path writes to the database" in readme
-    assert "implemented, never called" in readme
-
-
-def test_development_database_is_empty_as_documented():
-    """The dev SQLite file must be empty, or the documentation is stale."""
-
-    import sqlite3
-
-    db = REPO_ROOT / "xprisk_dev.db"
-    if not db.exists():
-        pytest.skip("xprisk_dev.db has not been created on this machine")
-
-    connection = sqlite3.connect(db)
-    try:
-        tables = {
-            row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
-        }
-        if not {"deployments", "findings", "risk_factors"} <= tables:
-            pytest.skip("schema not initialised in the development database")
-
-        counts = {
-            table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-            for table in ("deployments", "findings", "risk_factors")
-        }
-    finally:
-        connection.close()
-
-    assert all(count == 0 for count in counts.values()), (
-        f"the development database now holds rows: {counts}. Persistence is live, so "
-        "README section 5 and section 18 gap 5 are out of date."
-    )
+    assert _calls_method(Path(REPO_ROOT / "backend" / "app" / "services" / "scan_service.py"),
+                         "create_deployment")
 
 
 # -- the layering rule still holds -------------------------------------------
