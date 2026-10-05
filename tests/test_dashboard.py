@@ -6,6 +6,7 @@ data-transformation layer and the service facade the UI depends on.
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -168,5 +169,47 @@ def test_fixture_loader_when_fixtures_present():
     data = DashboardData.__new__(DashboardData)
     findings = data.load_fixture_findings(next(iter(FIXTURE_PRESETS)))
     assert isinstance(findings, list)
-    # Insecure fixture set should normalize at least one finding
-    assert len(findings) >= 1
+    # Real vulnerable-image scan: 2 Gitleaks + 24 Checkov + 651 Trivy.
+    assert len(findings) == 677
+
+
+def test_every_fixture_preset_loads_real_scanner_output():
+    """Each preset must resolve to files that exist and parse to real findings.
+
+    This guards the specific failure that motivated rewriting the fixtures: a
+    preset whose files are absent or empty silently scores a deployment as
+    clean, which is the most damaging way this dashboard can be wrong.
+    """
+
+    data = DashboardData.__new__(DashboardData)
+    expected_counts = {
+        "Vulnerable demo image - all scanners (real scan)": 677,
+        "Hardened demo image - all scanners (real scan)": 291,
+        "Secrets only - shows context sensitivity (real scan)": 2,
+    }
+    assert set(FIXTURE_PRESETS) == set(expected_counts)
+
+    for label, preset in FIXTURE_PRESETS.items():
+        assert preset.note, f"{label} has no provenance note"
+        for tool, relative in preset.fixtures.items():
+            path = Path(__file__).resolve().parent.parent / relative
+            assert path.is_file(), f"{label}: missing {tool} fixture at {relative}"
+        findings = data.load_fixture_findings(label)
+        assert len(findings) == expected_counts[label], label
+        assert all(f.metadata.get("data_origin") == "FIXTURE" for f in findings)
+
+
+def test_hardened_preset_is_not_misrepresented_as_clean():
+    """The hardened preset must not be presented as a zero-finding result.
+
+    A previous version of these fixtures declared zero Trivy and zero Checkov
+    findings for the hardened scenarios, which is not what either tool reports.
+    The dashboard now shows 291 real findings, and this test fails if that ever
+    silently reverts to zero.
+    """
+
+    data = DashboardData.__new__(DashboardData)
+    findings = data.load_fixture_findings("Hardened demo image - all scanners (real scan)")
+    by_tool = Counter(f.tool for f in findings)
+    assert by_tool == {"TRIVY": 283, "CHECKOV": 8}
+    assert by_tool["TRIVY"] > 0 and by_tool["CHECKOV"] > 0

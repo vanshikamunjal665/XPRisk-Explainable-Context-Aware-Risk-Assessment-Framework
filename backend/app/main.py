@@ -15,11 +15,25 @@ risk scoring or explanation.
 
 Configuration
 -------------
-Settings come from :mod:`app.config`, which is the single module in XPRisk that
-reads the process environment. This module previously read ``APP_NAME``,
-``APP_ENV`` and ``DATABASE_URL`` directly from ``os.environ``; it now uses the
-validated ``AppSettings`` object instead, so a malformed value fails at startup
-rather than at the first request that happens to need it.
+Settings come from :mod:`backend.app.config`, which is the single module in
+XPRisk that reads the process environment. This module previously read
+``APP_NAME``, ``APP_ENV`` and ``DATABASE_URL`` directly from ``os.environ``; it
+now uses the validated ``AppSettings`` object instead, so a malformed value fails
+at startup rather than at the first request that happens to need it.
+
+The config import is absolute (``backend.app.config``) rather than relative for a
+practical reason: this module must be importable by the ASGI server string
+``backend.app.main:app`` with only the repository root on ``sys.path``. An earlier
+version used ``from app.config import ...``, which resolves only when ``backend/``
+itself is on ``sys.path``. That import passed the test suite, because the test
+that imports this module also inserts ``backend`` into ``sys.path``, but it failed
+immediately under the documented run command::
+
+    python -m uvicorn backend.app.main:app
+    ModuleNotFoundError: No module named 'app'
+
+``tests/test_backend_app.py`` now imports this module the way uvicorn does, so
+that class of mismatch cannot come back.
 """
 
 from __future__ import annotations
@@ -29,7 +43,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from app.config import AppSettings, get_app_settings
+from backend.app.config import AppSettings, get_app_settings
 
 
 @lru_cache(maxsize=1)

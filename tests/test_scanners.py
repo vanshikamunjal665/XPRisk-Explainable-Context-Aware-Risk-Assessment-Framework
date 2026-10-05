@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -17,9 +18,13 @@ import pytest
 
 sys.path.insert(0, ".")  # repository root on sys.path (conftest also does this)
 
+import scanners.base as scanners_base  # noqa: E402
+
 from scanners.base import (  # noqa: E402
     DataOrigin,
     ScannerStatus,
+    _locate_executable,
+    _shim_child_env,
     parse_json_object_or_list,
     resolve_executable,
     run_command,
@@ -156,15 +161,103 @@ def test_gitleaks_fixture_is_labelled():
 # Trivy
 # --------------------------------------------------------------------------
 
-def test_trivy_parse_multiple_vulns():
-    findings = parse_trivy_report((FIX / "trivy/sample_image_scan.json").read_text())
-    assert len(findings) == 2
-    assert findings[0].vulnerability_id == "CVE-2023-12345"
-    assert findings[1].fixed_version is None
+def test_trivy_parse_real_fixture():
+    """The committed Trivy fixture is a complete, untruncated real scan.
+
+    Assertions are invariants of genuine scanner output rather than specific
+    CVE identifiers: the vulnerability database is refreshed periodically, so
+    pinning ``CVE-2011-3374`` would make this test a tripwire that fails for a
+    reason unrelated to the code. What must hold is that every record is
+    well formed, that the OS and language targets are both present, and that
+    the fixture still carries the provenance marker.
+    """
+
+    raw = (FIX / "trivy/sample_image_scan.json").read_text(encoding="utf-8")
+    document = json.loads(raw)
+
+    assert document["_xprisk_fixture"]["data_origin"] == "REAL_TRIVY_OUTPUT"
+    assert document["_xprisk_fixture"]["true_total_vulnerabilities"] == sum(
+        len(r["Vulnerabilities"]) for r in document["Results"]
+    )
+
+    findings = parse_trivy_report(raw)
+    assert len(findings) == 651
+    assert {f.package_type for f in findings} == {"debian", "python-pkg"}
+    for f in findings:
+        # Not every advisory carries a CVE. Real output on this image contains
+        # 637 CVE identifiers plus Debian's own advisories: DLA-nnnn-n for
+        # patches published before or instead of an upstream CVE, DSA-nnnn-n
+        # for security announcements, and TEMP-... while an identifier is still
+        # being assigned.
+        assert re.fullmatch(
+            r"(CVE-\d{4}-\d+|GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}"
+            r"|TEMP-[0-9A-F-]+|DLA-\d+-\d+|DSA-\d+-\d+)",
+            f.vulnerability_id,
+        ), f.vulnerability_id
+        assert f.severity in {"CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"}
+        assert f.package and f.installed_version
+        assert f.target and f.package_type
+
+    # Only upstream advisories carry a PrimaryURL; distribution advisories are
+    # resolved against the distro tracker instead, which Trivy does not link.
+    assert {f.vulnerability_id.split("-")[0] for f in findings if not f.primary_url} == {
+        "DLA",
+        "DSA",
+    }
 
 
-def test_trivy_parse_clean_and_malformed():
-    assert parse_trivy_report((FIX / "trivy/sample_image_scan_clean.json").read_text()) == []
+def test_trivy_fixture_absent_fix_version_becomes_none():
+    """A real scan contains advisories with no fix published yet.
+
+    ``FixedVersion`` is emitted as an empty string in that case, and the adapter
+    must turn it into ``None`` rather than propagate an empty string as though
+    it were a version.
+    """
+
+    unfixed = json.dumps(
+        {
+            "Results": [
+                {
+                    "Target": "demo:latest",
+                    "Type": "debian",
+                    "Vulnerabilities": [
+                        {
+                            "VulnerabilityID": "CVE-0000-0000",
+                            "PkgName": "p",
+                            "InstalledVersion": "1.0",
+                            "FixedVersion": "",
+                            "Severity": "LOW",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+    assert parse_trivy_report(unfixed)[0].fixed_version is None
+
+
+def test_trivy_clean_fixture_is_real_not_empty():
+    """The 'clean' image is newer but not vulnerability-free.
+
+    An earlier version of this fixture declared an empty ``Vulnerabilities``
+    array, which claimed zero known vulnerabilities where a real scan finds
+    hundreds. That flattered the demo, so the fixture now holds the real scan
+    and this test pins the count.
+    """
+
+    raw = (FIX / "trivy/sample_image_scan_clean.json").read_text(encoding="utf-8")
+    document = json.loads(raw)
+    assert document["_xprisk_fixture"]["data_origin"] == "REAL_TRIVY_OUTPUT"
+    assert "xprisk-clean:demo" in document["_xprisk_fixture"]["scanned_targets"][0]
+
+    findings = parse_trivy_report(raw)
+    assert len(findings) == 283
+    assert all(f.target.startswith("xprisk-clean:demo") or f.target == "Python" for f in findings)
+
+
+def test_trivy_parse_empty_and_malformed():
+    empty = json.dumps({"Results": [{"Target": "x", "Type": "debian", "Vulnerabilities": []}]})
+    assert parse_trivy_report(empty) == []
     with pytest.raises(ValueError):
         parse_trivy_report("[1,2]")
 
@@ -192,7 +285,7 @@ def test_trivy_real_success(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     result = TrivyScanner().scan_image("xprisk:vuln", severities="CRITICAL,HIGH")
     assert result.status is ScannerStatus.SUCCESS
-    assert len(result.findings) == 2
+    assert len(result.findings) == 651
     assert captured["argv"][:2] == ["trivy", "image"]
 
 
@@ -234,7 +327,7 @@ def test_trivy_local_image_uses_docker_save_then_input(monkeypatch):
 
     assert result.status is ScannerStatus.SUCCESS
     assert result.data_origin is DataOrigin.REAL
-    assert len(result.findings) == 2
+    assert len(result.findings) == 651
     assert len(calls) == 2
 
     save_argv, trivy_argv = calls
@@ -405,15 +498,69 @@ def test_trivy_fixture_labelled():
 # Checkov
 # --------------------------------------------------------------------------
 
-def test_checkov_parse_failed_checks():
-    findings = parse_checkov_report((FIX / "checkov/terraform_insecure.json").read_text())
-    assert len(findings) == 2
-    assert findings[0].check_id == "CKV_AWS_20"
-    assert findings[0].start_line == 27
+def test_checkov_parse_real_fixture():
+    """The committed Checkov fixture is a complete real run.
+
+    Two properties of genuine Checkov 3.3.22 output are pinned here, because
+    both were previously contradicted by a hand-written fixture:
+
+    * ``severity`` is ``null`` on every Terraform resource check, so the
+      adapter must pass that ``None`` through rather than substitute a guess;
+    * there is no nested ``check`` object, so the human-readable title arrives
+      in the flat ``check_name`` field.
+    """
+
+    raw = (FIX / "checkov/terraform_insecure.json").read_text(encoding="utf-8")
+    document = json.loads(raw)
+    assert document[0]["_xprisk_fixture"]["data_origin"] == "REAL_CHECKOV_OUTPUT"
+
+    findings = parse_checkov_report(raw)
+    assert len(findings) == 24
+    assert all(f.severity is None for f in findings)
+    assert all(f.name for f in findings), "every real check carries check_name"
+    assert all(f.check_id.startswith(("CKV_", "CKV2_")) for f in findings)
+    assert all(f.start_line and f.end_line >= f.start_line for f in findings)
+    assert {f.check_type for f in findings} == {"terraform"}
+
+    by_id = {f.check_id: f for f in findings}
+    security_group = by_id["CKV_AWS_24"]
+    assert security_group.name == "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22"
+    assert security_group.resource == "aws_security_group.insecure"
+    assert security_group.file_path == "\\main.tf"
 
 
-def test_checkov_parse_clean_and_malformed():
-    assert parse_checkov_report((FIX / "checkov/terraform_clean.json").read_text()) == []
+def test_checkov_secure_fixture_is_real_not_empty():
+    """The hardened scenario still fails some checks.
+
+    An earlier version of this fixture declared zero failed checks. The real
+    hardened Terraform fails 8, because Checkov's policy set includes rules the
+    hardened file does not attempt to satisfy. That gap is real and is left
+    visible rather than edited out of the fixture.
+    """
+
+    raw = (FIX / "checkov/terraform_clean.json").read_text(encoding="utf-8")
+    findings = parse_checkov_report(raw)
+    assert len(findings) == 8
+    assert {f.resource for f in findings} == {
+        "aws_security_group.secure",
+        "aws_s3_bucket.secure",
+    }
+    assert {f.check_id for f in findings} == {
+        "CKV_AWS_23",
+        "CKV_AWS_382",
+        "CKV_AWS_18",
+        "CKV_AWS_144",
+        "CKV_AWS_145",
+        "CKV2_AWS_5",
+        "CKV2_AWS_61",
+        "CKV2_AWS_62",
+    }
+    assert all(f.severity is None for f in findings)
+
+
+def test_checkov_parse_empty_and_malformed():
+    empty = json.dumps([{"check_type": "terraform", "results": {"failed_checks": []}}])
+    assert parse_checkov_report(empty) == []
     with pytest.raises(ValueError):
         parse_checkov_report('{"results": "nope"}')
 
@@ -431,7 +578,7 @@ def test_checkov_failure_and_success_rc1(monkeypatch):
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _completed(1, stdout=stdout))
     result = CheckovScanner().scan("infrastructure/scenarios/insecure")
     assert result.status is ScannerStatus.SUCCESS
-    assert len(result.findings) == 2
+    assert len(result.findings) == 24
 
 
 def test_checkov_fixture_labelled():
@@ -449,16 +596,19 @@ def test_checkov_argv_shape(monkeypatch):
     --quiet` produces valid JSON on stdout and exits 0 (or 1 when checks
     fail, which is still a successful scan).
 
-    `shutil.which` is stubbed to None so that Windows .cmd-shim resolution is
-    bypassed. Without this the assertions would depend on whether checkov
-    happens to be installed on the machine running the suite: on Windows with
-    checkov on PATH the argv is rewritten to `cmd.exe /d /c .../checkov.CMD`,
-    on a machine without checkov it is left alone. This test is about the argv
-    the adapter *builds*, so resolution is disabled explicitly.
+    Executable resolution is stubbed out so that Windows `.cmd`-shim rewriting is
+    bypassed. Without this the assertions would depend on whether checkov is
+    installed next to the running interpreter: where it is, the argv is rewritten
+    to `cmd.exe /d /c .../checkov.CMD`; where it is not, it is left alone. This
+    test is about the argv the adapter *builds*, so resolution is disabled
+    explicitly.
     """
     stdout = (FIX / "checkov/terraform_insecure.json").read_text()
     captured = {}
-    monkeypatch.setattr(shutil, "which", lambda name: None)
+    # _locate_executable, not just shutil.which: the fallback also searches the
+    # running interpreter's Scripts directory, and this repository's own venv has
+    # checkov installed. Stubbing shutil.which alone would still resolve.
+    monkeypatch.setattr(scanners_base, "_locate_executable", lambda name: None)
 
     def fake_run(argv, **kwargs):
         captured["argv"] = argv
@@ -551,6 +701,102 @@ def test_run_command_uses_resolved_argv(monkeypatch):
     assert captured["shell"] is False
     assert captured["argv"][3].lower().endswith("checkov.cmd")
     assert captured["argv"][-1] == "--version"
+
+
+# --------------------------------------------------------------------------
+# Locating a tool installed in the environment XPRisk itself runs from
+# --------------------------------------------------------------------------
+#
+# A pip console script is invisible unless PATH contains the environment's
+# Scripts directory, which is only true after activation. Running a documented
+# command such as `.\.venv\Scripts\python.exe -m pytest` uses the venv
+# interpreter without touching PATH, and the Checkov adapter then reported
+# UNAVAILABLE: 24 real findings became zero, with no error a presenter would
+# notice. These tests pin the fallback.
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows script-directory layout")
+def test_locate_executable_falls_back_to_the_running_interpreter(monkeypatch, tmp_path):
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
+    (tmp_path / "checkov.cmd").write_text("@echo off\n", encoding="utf-8")
+
+    assert _locate_executable("checkov") == str(tmp_path / "checkov.cmd")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows script-directory layout")
+def test_locate_executable_prefers_path_over_the_scripts_directory(monkeypatch, tmp_path):
+    """A genuinely installed tool must win over the environment-local one."""
+
+    monkeypatch.setattr(shutil, "which", lambda name: r"C:\tools\checkov.exe")
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
+    (tmp_path / "checkov.cmd").write_text("@echo off\n", encoding="utf-8")
+
+    assert _locate_executable("checkov") == r"C:\tools\checkov.exe"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows script-directory layout")
+def test_locate_executable_still_reports_genuinely_absent_tools(monkeypatch, tmp_path):
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
+
+    assert _locate_executable("definitely-not-installed-xyz") is None
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows script-directory layout")
+def test_resolve_executable_routes_a_local_shim_through_comspec(monkeypatch, tmp_path):
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
+    (tmp_path / "checkov.cmd").write_text("@echo off\n", encoding="utf-8")
+    monkeypatch.setenv("COMSPEC", r"C:\WINDOWS\system32\cmd.exe")
+
+    out = resolve_executable(["checkov", "-d", "iac", "-o", "json"])
+    assert out[0].lower().endswith("cmd.exe")
+    assert out[3] == str(tmp_path / "checkov.cmd")
+    assert out[4:] == ["-d", "iac", "-o", "json"]
+
+
+def test_shim_child_env_puts_the_shim_directory_first(monkeypatch):
+    """The shim finds its own interpreter, not the system one.
+
+    A pip `.cmd` shim locates python.exe by scanning PATH. Without this, a
+    child inherits a PATH pointing at the system interpreter, the shim runs
+    the wrong Python and exits with `ModuleNotFoundError: No module named
+    'checkov'` -- which the adapter cannot distinguish from a missing tool.
+    """
+
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setenv("PATH", r"C:\Python312;C:\Windows\System32")
+    argv = [r"C:\WINDOWS\system32\cmd.exe", "/d", "/c",
+            r"C:\proj\.venv\Scripts\checkov.cmd", "--version"]
+
+    env = _shim_child_env(argv)
+    assert env is not None
+    assert env["PATH"].split(os.pathsep)[0] == r"C:\proj\.venv\Scripts"
+    assert r"C:\Python312" in env["PATH"]
+
+
+def test_shim_child_env_is_not_applied_to_native_binaries():
+    """gitleaks.exe and trivy.exe must inherit the environment untouched."""
+
+    assert _shim_child_env(["gitleaks.exe", "dir", "."]) is None
+    assert _shim_child_env(["C:\\tools\\trivy.exe", "image", "--input", "x.tar"]) is None
+
+
+def test_run_command_passes_the_shim_environment(monkeypatch):
+    monkeypatch.setattr(shutil, "which", lambda name: r"C:\proj\.venv\Scripts\checkov.CMD")
+    monkeypatch.setenv("COMSPEC", r"C:\WINDOWS\system32\cmd.exe")
+    captured = {}
+
+    def fake_run(argv, **kwargs):
+        captured["env"] = kwargs.get("env")
+        return _completed(0, stdout="[]")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    run_command(["checkov", "--version"], timeout=5)
+
+    assert captured["env"] is not None
+    assert captured["env"]["PATH"].split(os.pathsep)[0] == r"C:\proj\.venv\Scripts"
 
 
 # --------------------------------------------------------------------------

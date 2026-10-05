@@ -2,31 +2,688 @@
   {
     "check_type": "terraform",
     "results": {
-      "passed_checks": [],
       "failed_checks": [
         {
-          "check_id": "CKV_AWS_20",
-          "bc_check_id": "BC_AWS_S3_13",
-          "check": {"id": "CKV_AWS_20", "name": "S3 Bucket has an ACL defined which allows public READ access.", "category": "LOGGING"},
-          "resource": "aws_s3_bucket.insecure",
-          "file_path": "/infrastructure/scenarios/insecure/main.tf",
-          "file_line_range": [27, 31],
-          "severity": "HIGH",
-          "check_result": {"result": "FAILED"},
-          "evaluation_details": "Fixture detail, not a live result."
+          "check_id": "CKV_AWS_23",
+          "check_name": "Ensure every security group and rule has a description",
+          "bc_check_id": "BC_AWS_NETWORKING_31",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "egress/[0]",
+              "ingress/[0]"
+            ]
+          },
+          "resource": "aws_security_group.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_382",
+          "check_name": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+          "bc_check_id": "BC_AWS_IAM_93",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "egress/[0]/from_port",
+              "egress/[0]/to_port",
+              "egress/[0]/cidr_blocks",
+              "egress/[0]/ipv6_cidr_blocks"
+            ]
+          },
+          "resource": "aws_security_group.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
         },
         {
           "check_id": "CKV_AWS_24",
-          "bc_check_id": "BC_AWS_0",
-          "check": {"id": "CKV_AWS_24", "name": "Ensure no security groups allow ingress from 0.0.0.0/0 to port 22", "category": "NETWORKING"},
+          "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+          "bc_check_id": "BC_AWS_NETWORKING_1",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "ingress/[0]/from_port",
+              "ingress/[0]/to_port",
+              "ingress/[0]/cidr_blocks",
+              "ingress/[0]/ipv6_cidr_blocks"
+            ]
+          },
           "resource": "aws_security_group.insecure",
-          "file_path": "/infrastructure/scenarios/insecure/main.tf",
-          "file_line_range": [55, 61],
-          "severity": "HIGH",
-          "check_result": {"result": "FAILED"}
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_25",
+          "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 3389",
+          "bc_check_id": "BC_AWS_NETWORKING_2",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "ingress/[1]/from_port",
+              "ingress/[1]/to_port",
+              "ingress/[1]/cidr_blocks",
+              "ingress/[1]/ipv6_cidr_blocks"
+            ]
+          },
+          "resource": "aws_security_group.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_260",
+          "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80",
+          "bc_check_id": "BC_AWS_NETWORKING_67",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "ingress/[1]/from_port",
+              "ingress/[1]/to_port",
+              "ingress/[1]/cidr_blocks",
+              "ingress/[1]/ipv6_cidr_blocks"
+            ]
+          },
+          "resource": "aws_security_group.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_277",
+          "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port -1",
+          "bc_check_id": "BC_AWS_NETWORKING_78",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "ingress/[1]/from_port",
+              "ingress/[1]/to_port",
+              "ingress/[1]/cidr_blocks",
+              "ingress/[1]/ipv6_cidr_blocks"
+            ]
+          },
+          "resource": "aws_security_group.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_62",
+          "check_name": "Ensure IAM policies that allow full \"*-*\" administrative privileges are not created",
+          "bc_check_id": "BC_AWS_IAM_47",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy",
+              "inline_policy"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_287",
+          "check_name": "Ensure IAM policies does not allow credentials exposure",
+          "bc_check_id": "BC_AWS_IAM_82",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy/Statement/[0]/Action"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_288",
+          "check_name": "Ensure IAM policies does not allow data exfiltration",
+          "bc_check_id": "BC_AWS_IAM_83",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy/Statement/[0]/Action"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_289",
+          "check_name": "Ensure IAM policies does not allow permissions management / resource exposure without constraints",
+          "bc_check_id": "BC_AWS_IAM_84",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy/Statement/[0]/Action"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_286",
+          "check_name": "Ensure IAM policies does not allow privilege escalation",
+          "bc_check_id": "BC_AWS_IAM_81",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy/Statement/[0]/Action"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_63",
+          "check_name": "Ensure no IAM policies documents allow \"*\" as a statement's actions",
+          "bc_check_id": "BC_AWS_IAM_48",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy",
+              "inline_policy"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_355",
+          "check_name": "Ensure no IAM policies documents allow \"*\" as a statement's resource for restrictable actions",
+          "bc_check_id": "BC_AWS_IAM_88",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy/Statement/[0]/Action"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_290",
+          "check_name": "Ensure IAM policies does not allow write access without constraints",
+          "bc_check_id": "BC_AWS_IAM_85",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "policy/Statement/[0]/Action"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_62",
+          "check_name": "Ensure S3 buckets should have event notifications enabled",
+          "bc_check_id": "BC_AWS_LOGGING_36",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_6",
+          "check_name": "Ensure that S3 bucket has a Public Access block",
+          "bc_check_id": "BC_AWS_NETWORKING_52",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "block_public_acls",
+              "block_public_policy"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_5",
+          "check_name": "Ensure that Security Groups are attached to another resource",
+          "bc_check_id": "BC_AWS_NETWORKING_51",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_security_group": {
+                "insecure": {
+                  "__end_line__": 70,
+                  "__start_line__": 45,
+                  "egress": [
+                    {
+                      "cidr_blocks": [
+                        [
+                          "0.0.0.0/0"
+                        ]
+                      ],
+                      "from_port": [
+                        0
+                      ],
+                      "protocol": [
+                        "-1"
+                      ],
+                      "to_port": [
+                        0
+                      ]
+                    }
+                  ],
+                  "ingress": [
+                    {
+                      "cidr_blocks": [
+                        [
+                          "0.0.0.0/0"
+                        ]
+                      ],
+                      "from_port": [
+                        22
+                      ],
+                      "protocol": [
+                        "tcp"
+                      ],
+                      "to_port": [
+                        22
+                      ]
+                    },
+                    {
+                      "cidr_blocks": [
+                        [
+                          "0.0.0.0/0"
+                        ]
+                      ],
+                      "from_port": [
+                        0
+                      ],
+                      "protocol": [
+                        "-1"
+                      ],
+                      "to_port": [
+                        0
+                      ]
+                    }
+                  ],
+                  "name": [
+                    "xprisk-phase3-insecure-sg"
+                  ],
+                  "__address__": "aws_security_group.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "networking"
+            ]
+          },
+          "resource": "aws_security_group.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            45,
+            70
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_18",
+          "check_name": "Ensure the S3 bucket has access logging enabled",
+          "bc_check_id": "BC_AWS_S3_13",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "logging"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_144",
+          "check_name": "Ensure that S3 bucket has cross-region replication enabled",
+          "bc_check_id": "BC_AWS_GENERAL_72",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "replication_configuration/rules/*/status",
+              "resource_type",
+              "rule/*/status"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_21",
+          "check_name": "Ensure all data stored in the S3 bucket have versioning enabled",
+          "bc_check_id": "BC_AWS_S3_16",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "versioning/enabled",
+              "versioning_configuration/status"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_61",
+          "check_name": "Ensure that an S3 bucket has a lifecycle configuration",
+          "bc_check_id": "BC_AWS_LOGGING_35",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "lifecycle_rule"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_145",
+          "check_name": "Ensure that S3 buckets are encrypted with KMS by default",
+          "bc_check_id": "BC_AWS_GENERAL_56",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "server_side_encryption_configuration/rule/apply_server_side_encryption_by_default/sse_algorithm",
+              "rule/apply_server_side_encryption_by_default/sse_algorithm"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_20",
+          "check_name": "S3 Bucket has an ACL defined which allows public READ access.",
+          "bc_check_id": "BC_AWS_S3_1",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "insecure": {
+                  "__end_line__": 38,
+                  "__start_line__": 34,
+                  "acl": [
+                    "public-read"
+                  ],
+                  "bucket": [
+                    "xprisk-phase3-insecure-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "access_control_policy/grant",
+              "resource_type",
+              "access_control_policy/grant/*/grantee/uri",
+              "acl",
+              "access_control_policy"
+            ]
+          },
+          "resource": "aws_s3_bucket.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            34,
+            38
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_40",
+          "check_name": "Ensure AWS IAM policy does not allow full IAM privileges",
+          "bc_check_id": "BC_AWS_IAM_73",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_iam_policy": {
+                "insecure": {
+                  "__end_line__": 83,
+                  "__start_line__": 72,
+                  "name": [
+                    "xprisk-phase3-wildcard"
+                  ],
+                  "policy": [
+                    {
+                      "Version": "2012-10-17",
+                      "Statement": [
+                        {
+                          "Effect": "Allow",
+                          "Action": "*",
+                          "Resource": "*"
+                        }
+                      ]
+                    }
+                  ],
+                  "__address__": "aws_iam_policy.insecure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "statement[?(@/effect == Allow)]/actions[*]",
+              "policy/Statement[?(@/Effect == Allow)]/Action[*]",
+              "inline_policy/Statement[?(@/Effect == Allow)]/Action[*]"
+            ]
+          },
+          "resource": "aws_iam_policy.insecure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            72,
+            83
+          ],
+          "severity": null
         }
-      ],
-      "skipped_checks": []
+      ]
+    },
+    "_xprisk_fixture": {
+      "data_origin": "REAL_CHECKOV_OUTPUT",
+      "tool_version": "checkov 3.3.22",
+      "note": "Verbatim Checkov output, trimmed to the fields scanners/checkov_scanner.py reads. Severity is null because Checkov does not report severity for Terraform resource checks; see docs/risk-model.md section 7.3."
     }
   }
 ]

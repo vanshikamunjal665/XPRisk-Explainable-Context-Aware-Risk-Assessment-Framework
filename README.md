@@ -131,37 +131,54 @@ backend/app  ->  explainability  ->  risk_engine  ->  normalizer
 ```
 
 - Domain packages (`scanners/`, `normalizer/`, `risk_engine/`,
-  `explainability/`) **never import FastAPI, SQLAlchemy or Streamlit.**
+  `explainability/`) **never import FastAPI, SQLAlchemy or Streamlit.** This is
+  enforced by a test, not by convention: `tests/test_config.py` walks the AST of
+  every module in `risk_engine/` and `normalizer/` and fails the build if any of
+  them reads `os.environ` or imports `pydantic_settings`.
 - Consequences: the risk model is testable without a server or a database; the
-  dashboard is a pure HTTP client and can be deployed independently; the
   scanners can be replaced without touching the risk engine.
+- The dashboard currently calls the storage service and the engine directly
+  rather than over HTTP, so "deployable independently" is intended but not yet
+  delivered. That boundary is Phase 13.
 
 Two further separations are deliberate, and both are specified explicitly:
 
 | Separation | Why |
 |---|---|
-| `scanner_service` (execution) vs `normalization_service` (translation) | Parser logic is unit testable without running any security tool. A scanner bug cannot corrupt the risk model. |
-| `schemas/` (Pydantic) vs `models/` (SQLAlchemy) | The API contract cannot be changed silently by a database migration. |
+| Scanner execution vs finding normalization | Parser logic is unit testable without running any security tool. A scanner bug cannot corrupt the risk model. Planned as `scanner_service` / `normalization_service` in Phase 12; today the split is the package boundary `scanners/` vs `normalizer/`. |
+| `schemas/` (Pydantic) vs `models/` (SQLAlchemy) | The API contract cannot be changed silently by a database migration. `models/` is built; `schemas/` is Phase 13. |
 
 ## 5. Workflow
 
-1. A deployment is requested: a commit, a branch, an environment, an exposure
-   flag.
-2. `scanner_service` triggers the enabled scanners and records a status per
-   tool (`SUCCESS`, `FAILED`, `UNAVAILABLE`, `SKIPPED`) plus a duration. **One
-   failing tool never fails the scan.**
-3. `normalization_service` converts each tool's native JSON into canonical
-   `NormalizedFinding` objects, preserving tool-specific fields under
-   `metadata`.
-4. `storage_service` persists the `Deployment` and its `Finding` rows.
-5. `risk_engine` computes per-finding risk, aggregates it, normalizes to 0-100
-   through a piecewise-linear curve, applies a bounded context uplift, and maps
-   the result through configurable thresholds.
-6. Every individual contribution is persisted to `risk_factors`, which is what
-   makes historical explanations reproducible.
-7. `explainability` ranks the stored contributions into a human-readable
-   rationale and actionable remediation.
-8. FastAPI serves the result; Streamlit renders it.
+**Target pipeline.** Steps 2, 3, 5 and 7 run today. Steps 1, 4, 6 and 8 are
+Phase 12-13 and are marked below — read the markers, not the verbs.
+
+| # | Step | Status |
+|---|---|---|
+| 1 | A deployment is requested: a commit, a branch, an environment, an exposure flag. | Phase 12 |
+| 2 | The enabled scanners are triggered and a status is recorded per tool (`SUCCESS`, `FAILED`, `UNAVAILABLE`, `SKIPPED`) plus a duration. **One failing tool never fails the scan.** | **done** (`scanners/`) |
+| 3 | Each tool's native JSON is converted into canonical `NormalizedFinding` objects, preserving tool-specific fields under `metadata`. | **done** (`normalizer/`) |
+| 4 | `storage_service` persists the `Deployment` and its `Finding` rows. | **implemented, never called** |
+| 5 | `risk_engine` computes per-finding risk, aggregates it, normalizes to 0-100 through a piecewise-linear curve, applies a bounded context uplift, and maps the result through configurable thresholds. | **done** (`risk_engine/`) |
+| 6 | Every individual contribution is persisted to `risk_factors`, which is what would make historical explanations reproducible. | **implemented, never called** |
+| 7 | `explainability` ranks the contributions into a human-readable rationale and actionable remediation. | **done** (`explainability/`) |
+| 8 | FastAPI serves the result; Streamlit renders it. | Streamlit only; FastAPI is `/health` |
+
+### What "implemented, never called" means
+
+Steps 4 and 6 are the important caveat. `StorageService` really does create
+deployments and write findings and risk factors — and **nothing outside
+`tests/test_storage.py` ever asks it to.** There is no `scan_service` to compose
+the pipeline, so:
+
+- `xprisk_dev.db` contains 0 rows in all three tables.
+- The dashboard's *Deployment history* view always reports no deployments.
+- The assessment is computed, rendered and discarded.
+
+So the risk model, the scanners, the normalizer and the explainability engine are
+all reachable and demonstrable, but the thing that would join them into one
+durable pipeline is Phase 12 work that has not been written. Do not describe the
+target pipeline above as though it runs end to end.
 
 ## 6. Technology stack
 
@@ -191,61 +208,47 @@ XPRisk-Explainable-Context-Aware-Risk-Assessment-Framework/
 │   ├── app/
 │   │   ├── main.py               FastAPI application factory
 │   │   ├── config.py             Typed settings (pydantic-settings)
-│   │   ├── cli.py                Headless entry point (assess / gate)
-│   │   ├── api/                  HTTP routers
-│   │   │   ├── scans.py          POST /scan
-│   │   │   ├── findings.py       GET /findings, /findings/{deployment_id}
-│   │   │   ├── risk.py           GET /risk/{id}, POST /risk/evaluate
-│   │   │   ├── deployments.py    GET /deployments, /deployments/{id}
-│   │   │   ├── explanations.py   GET /explanation/{id}
-│   │   │   └── trends.py         GET /trends
+│   │   ├── api/                  HTTP routers (Phase 13 - only __init__.py so far)
 │   │   ├── models/               SQLAlchemy ORM models
-│   │   │   ├── deployment.py
-│   │   │   ├── finding.py
-│   │   │   └── risk.py
+│   │   │   └── models.py         Deployment, Finding, RiskFactor
 │   │   ├── schemas/              Pydantic request/response models
 │   │   ├── services/             Orchestration layer
-│   │   │   ├── scanner_service.py
-│   │   │   ├── normalization_service.py
-│   │   │   ├── storage_service.py
-│   │   │   ├── risk_service.py
-│   │   │   ├── explanation_service.py
-│   │   │   └── scan_service.py
+│   │   │   └── storage_service.py
 │   │   └── database/
 │   │       ├── database.py       Engine, session factory
 │   │       └── init_db.py        Idempotent schema creation
-│   └── requirements.txt
 ├── scanners/                     Thin adapters, one per security tool
 │   ├── base.py                   ScannerResult, ScannerStatus, safe runner
+│   ├── scanner_service.py        Fan-out collector
 │   ├── gitleaks_scanner.py
 │   ├── trivy_scanner.py
 │   ├── checkov_scanner.py
 │   └── sonarqube_scanner.py
 ├── normalizer/
-│   ├── models.py                 Canonical NormalizedFinding schema
+│   ├── models.py                 Canonical XPRiskFinding schema
 │   └── normalizer.py             Per-tool parsers + severity mapping
 ├── risk_engine/                  Research core
-│   ├── settings.py               All configurable defaults
+│   ├── settings.py               All configurable defaults (no env access)
 │   ├── severity.py               Severity + base weights
 │   ├── context.py                Context model
 │   ├── scoring.py                Scoring algorithm
 │   ├── thresholds.py             SAFE / WARNING / BLOCK
-│   ├── strategies.py             Pluggable aggregation (comparative study)
 │   └── engine.py                 Deterministic orchestration
 ├── explainability/
 │   ├── contributors.py           Rank real contributions
 │   ├── explanation.py            Structured explanation payload
 │   └── recommendation.py         Actionable remediation
 ├── dashboard/
-│   ├── app.py                    Entry point
-│   ├── api_client.py             HTTP client for the backend only
-│   ├── components/               Reusable render helpers
-│   └── pages/
-│       ├── overview.py
-│       ├── findings.py
-│       ├── risk_analysis.py
-│       ├── explanations.py
-│       └── trends.py
+│   ├── app.py                    Streamlit entry point
+│   ├── service.py                Facade over storage + engine
+│   ├── transforms.py             Pure data reshaping
+│   └── requirements.txt
+├── tools/                        Regeneration scripts for real scanner output
+│   ├── regenerate_fixtures.py    Checkov fixtures from a real run
+│   └── regenerate_trivy_fixtures.py
+├── run_integration_scenarios.py  Prints actual outcomes for the six scenarios
+├── xprisk_comparative.py         Comparative study harness
+├── demo.cmd                      Demo launcher: pre-flight, tests, scenarios, dashboard
 ├── demo-app/                     The application XPRisk scans
 │   ├── app/                      Flask app (clean baseline)
 │   │   ├── main.py               App factory + entry point
@@ -431,34 +434,84 @@ Then open:
 
 ## 13. Running the dashboard
 
-In a **second** terminal:
+One command runs the whole demonstration — pre-flight, test suite, controlled
+scenarios, then the dashboard:
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
-streamlit run dashboard/app.py
+.\demo.cmd              # full demo
+.\demo.cmd check        # everything except the dashboard
 ```
 
-Open <http://127.0.0.1:8501>. The dashboard is a pure HTTP client: it reads
-everything from the backend API and holds no data of its own, so no dashboard
-value is ever hardcoded. Point it at a different backend with
-`DASHBOARD_API_URL`.
+It needs no PostgreSQL, no Docker and no installed security tool. The dashboard
+reads the risk engine and SQLite directly, so **the backend does not need to be
+running** for the demo; start it separately only if you want to show `/health`.
+
+Or run the dashboard on its own:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run dashboard/app.py
+```
+
+Open <http://127.0.0.1:8501>.
+
+### Suggested demo order
+
+1. Sidebar → *Fixture scenario* = **Secrets only**. Development / internal →
+   **Run assessment** → 36.9 WARNING.
+2. Change only the context to production / internet-facing, re-run → **51.4
+   WARNING**. Same two findings, different score. That single comparison is the
+   contribution the project claims.
+3. Scroll to **Explanation** — the five derivation steps, each contributor's
+   share of the total, and the context cap binding at 1.6.
+4. **Deployment context** and **Context factors** — show the cap explicitly.
+5. Only then switch to a full-scan preset. Both of those saturate at 100.0 /
+   BLOCK; the dashboard warns about it. Say so out loud rather than letting the
+   panel discover it.
+
+Steps 1-4 are the ones worth the time. Step 5 is there because the question will
+be asked anyway, and the honest answer is stronger than a hidden number.
+
+**Current state, stated plainly.** The dashboard has two sidebar views —
+*Assessment* and *Deployment history*. It does not yet read the backend over
+HTTP; it calls `StorageService` and the risk engine directly. There is no
+`api_client.py`, and `components/` and `pages/` are placeholders. The HTTP
+boundary is Phase 13 work. See §18.
+
+No dashboard value is hardcoded either way: every score, decision and
+explanation is rendered from what the engine produced for the findings on screen.
+The three selectable scenarios are replayed from `fixtures/`, which is real
+scanner output for Gitleaks, Trivy and Checkov (see §18). Each scenario states
+its own provenance on screen, and a saturated result is called out rather than
+presented as a precise score.
 
 ## 14. Running the scanners
 
 XPRisk drives the scanners itself. You do not need to run them by hand.
 
-**Verify each tool is visible to XPRisk:**
+**Verify which tools XPRisk can actually see:**
 
 ```powershell
-trivy --version
-checkov --version
-gitleaks version
+.\.venv\Scripts\python.exe -c "from scanners.base import _locate_executable as f; print({t: f(t) for t in ('checkov','trivy','gitleaks')})"
 ```
+
+A path means the tool was found; `None` means it is not installed and that
+scanner will report `UNAVAILABLE`. On the development machine this currently
+prints only `checkov`, because Trivy and Gitleaks were installed as standalone
+binaries rather than into the virtual environment.
+
+**Activation is not required.** `.\.venv\Scripts\python.exe <script>` does not
+put `.venv\Scripts` on `PATH`, so a tool installed into the virtual environment
+would normally be invisible and its findings silently dropped. The adapters
+search the running interpreter's own `Scripts` directory as well as `PATH`
+(`scanners.base._locate_executable`), which is why the check above is the
+reliable test. Verified: with `.venv\Scripts` removed from `PATH`, Checkov
+still returns its 24 real findings.
 
 **A tool that is not installed is not a crash.** It is reported as
 `UNAVAILABLE` with a captured error, and the remaining tools still contribute
 to the assessment. Every scanner adapter also supports Docker execution, which
-is the fallback when a host install is not possible.
+is the fallback when a host install is not possible — see
+[`docker/README.md`](docker/README.md).
 
 SonarQube configuration (never hardcode a token):
 
@@ -472,18 +525,32 @@ SONARQUBE_TOKEN=<generated from SonarQube: My Account -> Security -> Generate To
 ## 15. Running the tests
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q
+# 324 passed, 7 xfailed in ~10s
 
-pytest                      # everything
-pytest -m unit              # fast, isolated tests only
-pytest -m integration       # multi-component scenarios
-pytest --cov                # with coverage
-pytest tests/test_risk_engine.py -v
+# a single module, verbose
+.\.venv\Scripts\python.exe -m pytest tests/test_risk_engine.py -v
+
+# with coverage
+.\.venv\Scripts\python.exe -m pytest --cov
 ```
 
 The suite runs against an isolated temporary database and uses labelled
 fixture data, so it passes **without** PostgreSQL, Docker or any security tool
-installed.
+installed. It is fast because every scanner adapter is tested against a recorded
+report with `subprocess` mocked; `tests/test_scanners.py` never invokes a real
+tool.
+
+**`pytest -m unit` and `pytest -m integration` do not work yet.** Five markers
+(`unit`, `integration`, `contract`, `fixture`, `slow`) are declared in
+`pyproject.toml` so that `--strict-markers` will accept them, but no test carries
+one yet. Both commands currently report every test deselected and run nothing.
+An earlier version of this section listed them as working. Applying the markers
+is listed as a gap in §18.
+
+The marker selection is guarded by a test, so it cannot quietly stay wrong:
+`tests/test_pyproject_markers.py` fails if a documented `-m` expression selects
+no tests.
 
 ## 16. Docker setup
 
@@ -523,79 +590,224 @@ per-scanner Docker invocations that already work.
 
 ## 17. Example workflow
 
-Once a release is ready to be assessed:
+**The HTTP API is not the interface yet.** `POST /scan`, `GET /risk/{id}`,
+`GET /explanation/{id}` and `POST /risk/evaluate` do not exist; calling them
+returns 404. Orchestration services and routers are Phases 12-13. An earlier
+version of this section documented all four as though they worked.
+
+The equivalent workflow today runs through the two scripts in the repository
+root. This is the one to demonstrate, because it prints what the model actually
+does rather than a summary of what it should do.
 
 ```powershell
-# 1. Assess a commit for production, internet-facing
-curl.exe -X POST http://127.0.0.1:8000/scan `
-  -H "Content-Type: application/json" `
-  -d '{
-        "target_path": "./demo-app",
-        "commit_id": "a1b2c3d4",
-        "branch": "main",
-        "environment": "production",
-        "internet_exposed": true
-      }'
+# 1. The six controlled scenarios, with the real outcome of each
+.\.venv\Scripts\python.exe run_integration_scenarios.py
 
-# 2. Read the score and decision
-curl.exe http://127.0.0.1:8000/risk/1
-
-# 3. Read why
-curl.exe http://127.0.0.1:8000/explanation/1
-
-# 4. Score hypothetical findings without running any scanner
-curl.exe -X POST http://127.0.0.1:8000/risk/evaluate `
-  -H "Content-Type: application/json" `
-  -d '{
-        "context": {"environment": "development", "internet_exposed": false},
-        "findings": [
-          {"tool": "TRIVY", "category": "CONTAINER", "severity": "MEDIUM",
-           "finding_id": "CVE-2024-0001", "resource": "openssl",
-           "description": "Example finding"}
-        ]
-      }'
+# 2. The same finding sets scored under three policies, written to reports/
+.\.venv\Scripts\python.exe xprisk_comparative.py
 ```
 
-The same finding assessed in `development` and in `production` yields different
-scores. That difference is the evidence for the context-aware design, and it is
-covered by integration tests TEST 4 and TEST 5.
+`run_integration_scenarios.py` is the substantive one. TEST 4 and TEST 5 show the
+contribution of the context model directly: six identical findings score **36.4**
+in `development/internal` and **58.2** in `production/internet-facing`. It also
+prints the two rows where the result contradicts the scenario name, which is
+worth showing rather than hiding (see §18, gap 1).
+
+`demo.cmd` (§13) runs both scripts and then opens the dashboard, in that order.
+
+The same pipeline over real scanner output is reachable through the dashboard,
+which drives the `ScannerService` the API will drive:
+
+```powershell
+# Terminal 1
+.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --port 8000
+# Terminal 2
+.\.venv\Scripts\streamlit.exe run dashboard/app.py
+```
+
+For a live scanner run, with the tool installed (§8 — every tool is optional and
+every adapter degrades to `UNAVAILABLE` without it):
+
+```powershell
+# Gitleaks 8.30.1 -> 2 findings
+gitleaks dir demo-app/scenarios/insecure `
+  --config fixtures/gitleaks/gitleaks.toml `
+  --report-format json --report-path gl.json --redact
+
+# Checkov 3.3.22 -> 24 failed checks; exits 1, which the adapter treats as SUCCESS
+.\.venv\Scripts\checkov.cmd -d infrastructure/terraform `
+  --framework terraform -o json
+```
+
+The dashboard presets in §13 replay recorded output from these tools, so nothing
+needs to be installed to demo it.
 
 ## 18. Project status
 
-Current delivery: **Phases 1-8** of the planned 1-14.
+Current delivery: **Phases 1-11 complete**, Phase 14 partial, of the planned
+1-14.
 
 | Phase | Component | Status |
 |---|---|---|
 | 1 | Development environment, structure, configuration | Complete |
 | 2 | Demo cloud-native application | Complete |
 | 3 | Controlled security test cases | Complete |
-| 4 | Trivy, Checkov, Gitleaks, SonarQube integration | Complete |
+| 4 | Trivy, Checkov, Gitleaks, SonarQube integration | Complete (3 of 4 verified live) |
 | 5 | Finding collector | Complete |
 | 6 | Finding normalization | Complete |
 | 7 | PostgreSQL storage | Complete (SQLite verified; live PostgreSQL not yet run) |
 | 8 | Context model | Complete |
-| 9 | Risk-scoring algorithm | Next |
-| 10 | Risk engine | Planned |
-| 11 | SAFE / WARNING / BLOCK | Planned |
-| 12 | Explainability engine | Planned |
-| 13 | FastAPI backend | Planned (`/health` only) |
-| 14 | Streamlit dashboard | Planned |
+| 9 | Risk-scoring algorithm | Complete |
+| 10 | SAFE / WARNING / BLOCK thresholds | Complete |
+| 11 | Explainability engine | Complete |
+| 12 | Orchestration services | Not started |
+| 13 | FastAPI routers | Partial (`/health` only) |
+| 14 | Streamlit dashboard | Partial (2 views, engine-bound) |
 | 15 | GitHub Actions CI/CD | Reference stub, inert |
-| 16-23 | Gate, historical analytics, comparative study, performance, Docker, cloud, polish | Planned |
+| 16-23 | Gate, historical analytics, performance, Docker, cloud, polish | Planned |
 
-Verified so far: the demo application starts and serves all seven endpoints
-with `200`, every error path returns structured JSON (400 / 404 / 405 / 500),
-`terraform validate` passes, and the Gitleaks path has been confirmed end to
-end against a **real** `gitleaks dir` run (8.30.1) — 2 findings on the
-insecure scenario, 0 on the clean one. See
-[`demo-app/README.md`](demo-app/README.md),
+### Promised in the source, not built
+
+Three packages document architecture in the present tense that does not exist
+yet. They now say "planned" explicitly, and the claims are guarded:
+
+| Documented as built | Reality |
+|---|---|
+| `backend/app/api/__init__.py` lists 6 routers, "all mounted by `main`" | Package is empty; 0 routers, only `/health` |
+| `backend/app/services/__init__.py` lists 6 services | Only `storage_service` exists |
+| `backend/app/schemas/__init__.py` describes the API contract | Package is empty; no schema defined |
+
+`tests/test_backend_app.py` asserts the router set and the 404s;
+`tests/test_service_layer.py` asserts which services and schemas exist.
+
+### Verified against real tools
+
+| Tool | Version | Verification |
+|---|---|---|
+| Gitleaks | 8.30.1 | `gitleaks dir` — 2 findings on `demo-app/scenarios/insecure`, 0 on `demo-app/scenarios/clean` |
+| Trivy | 0.75.0 | Image scan — `xprisk-vulnerable:demo` 651 findings, `xprisk-clean:demo` 283 |
+| Checkov | 3.3.22 | `scenarios/insecure` 24 failed checks, `scenarios/clean` 8, `infrastructure/terraform` 53 |
+| Docker | current | Both scenario images build; `python:3.6-slim` and `python:3.12-slim-bookworm` bases |
+
+See [`demo-app/README.md`](demo-app/README.md),
 [`infrastructure/terraform/README.md`](infrastructure/terraform/README.md),
 [`demo-app/scenarios/README.md`](demo-app/scenarios/README.md) and
 [`fixtures/README.md`](fixtures/README.md).
 
-Known gaps carried into Phase 9: `backend/app/config.py` does not exist yet
-(settings are read ad hoc via `os.environ`), and the Trivy adapter implements
-`scan_image` only even though `.env.example` declares a filesystem target type.
+### Not yet verified
+
+- **SonarQube.** The adapter has never been run against a live instance. It is an
+  HTTP client, so the wrong-CLI-flag class of bug does not apply, but its
+  severity handling is unconfirmed and probably needs its own policy the way
+  Checkov's did.
+- **PostgreSQL.** SQLite only. The schema and ORM are engine-agnostic and this is
+  a `DATABASE_URL` change, but no live PostgreSQL run has been performed.
+- **The HTTP API.** No routers exist beyond `/health`, so there is no
+  `POST /scan` or `GET /risk/{id}`. The full pipeline is exercised by the scripts
+  in the root directory rather than over HTTP.
+
+### Reproducing the risk model
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -p no:cacheprovider -q   # 324 tests
+.\.venv\Scripts\python.exe run_integration_scenarios.py       # the six scenarios
+.\.venv\Scripts\python.exe xprisk_comparative.py              # comparative study
+```
+
+`run_integration_scenarios.py` prints what the model **actually does** on each
+scenario, including where the result contradicts the scenario name. Two rows
+currently disagree with their expected decision; both trace to the additive
+scoring limitation recorded in [`docs/risk-model.md`](docs/risk-model.md) §7.2,
+where a single CRITICAL secret scores 29.3 and lands in SAFE.
+
+### Known gaps
+
+1. **A single CRITICAL finding scores SAFE** (score 29.3 in
+   production/internet-facing). Purely additive scoring always values *n* medium
+   findings above *one* critical. Documented, not patched — see
+   [`docs/risk-model.md`](docs/risk-model.md) §7.2 for why steepening the curve
+   cannot fix it and what the conventional repair would cost.
+2. **Checkov reports no severity.** Every Terraform resource check has
+   `severity: null`, so IaC severity is uninformative and count is the only
+   discriminating signal. No severities were invented to paper over this — see
+   §7.3.
+3. **Saturation hides differences.** Large real scanner outputs (651 and 283
+   findings) score 100.0 in every context, so the score carries no information
+   for them — see §7.5.
+4. **The dashboard reads the engine and database directly** rather than over
+   HTTP, and runs assessments from `fixtures/`. The HTTP boundary is Phase 13
+   work.
+5. **No runnable path writes to the database.** `StorageService` implements
+   `create_deployment`, `save_findings` and `save_risk_factors`, and only
+   `tests/test_storage.py` calls them. There is no `scan_service` to compose
+   scan → normalize → score → persist, so `xprisk_dev.db` holds 0 rows and the
+   dashboard's *Deployment history* view is always empty. The persistence layer
+   is tested but unexercised in the product. This is the largest structural gap
+   and it is Phase 12 work — see §5.
+6. **The `sonarqube/` fixtures are the only invented data left.** Every other
+   fixture is genuine scanner output, regenerated by
+   `tools/regenerate_fixtures.py` and `tools/regenerate_trivy_fixtures.py`.
+   See [`fixtures/README.md`](fixtures/README.md) for the provenance table.
+7. **~39 environment variables in `.env.example` are declared but not read.**
+   Grouped and annotated in that file.
+8. **Five pytest markers are declared but unapplied.** `pyproject.toml` registers
+   `unit`, `integration`, `contract`, `fixture` and `slow`, and no test carries
+   one, so `pytest -m unit` collects nothing. Reported as 7 `xfailed` rather than
+   failures so the gap is visible without breaking the suite;
+   `tests/test_pyproject_markers.py` holds the assertions that will flip to
+   passing when the taxonomy is applied.
+
+### Three defects found while verifying the run instructions
+
+Both were found by executing the commands in this README rather than reading
+them, and both are now covered by tests.
+
+- **Checkov silently dropped all 24 findings** when XPRisk was started without
+  activating the virtual environment. Every command in this README uses
+  `.\.venv\Scripts\python.exe`, which selects the interpreter but does *not*
+  extend `PATH` — so the pip-installed `checkov` console script was
+  unresolvable and the adapter reported `UNAVAILABLE`. The assessment still
+  completed, just without a third of its findings and without an obvious error.
+  `scanners.base._locate_executable` now also searches the running
+  interpreter's own `Scripts` directory. Six tests cover it, including the
+  inverse property: a native binary still inherits the environment untouched.
+- **The documented backend command did not start.** §12 said to run
+  `python -m uvicorn backend.app.main:app`, but `main.py` imported its settings
+  with `from app.config import ...`, which resolves only when `backend/` is on
+  `sys.path` — not what uvicorn sets up. It raised
+  `ModuleNotFoundError: No module named 'app'` on the first line. The whole suite
+  passed, because no test imported the module at all. Fixed, and
+  `tests/test_backend_app.py` now imports it the way uvicorn does.
+- **§17 documented four endpoints that do not exist.** `POST /scan`,
+  `GET /risk/{id}`, `GET /explanation/{id}` and `POST /risk/evaluate` all return
+  404. A copy-paste of that section produced four errors. It now shows the two
+  root scripts that do work, and states the HTTP API is not the interface yet.
+
+### The fixtures are real scans
+
+Most of what the dashboard displays is replayed from genuine scanner output:
+
+| Fixture | Origin | Findings |
+|---|---|---|
+| `trivy/sample_image_scan.json` | Trivy 0.75.0 on `xprisk-vulnerable:demo` | 651 |
+| `trivy/sample_image_scan_clean.json` | Trivy 0.75.0 on `xprisk-clean:demo` | 283 |
+| `checkov/terraform_insecure.json` | Checkov 3.3.22, `scenarios/insecure` | 24 |
+| `checkov/terraform_clean.json` | Checkov 3.3.22, `scenarios/clean` | 8 |
+| `gitleaks/secrets_detected.json` | Gitleaks 8.30.1, redacted | 2 |
+| `sonarqube/issues_sample.json` | hand-written; no live SonarQube run exists | 2 |
+
+Two things that were wrong and are now corrected, because both would have been
+caught by an examiner who ran the tools:
+
+- The Trivy fixture used to contain invented CVE identifiers
+  (`CVE-2023-12345`). It now holds a complete, untruncated real scan.
+- The Checkov fixture used to declare `"severity": "HIGH"` on every check. Real
+  Checkov emits `severity: null`, which is what §7.3 of the risk model documents.
+  The fixture contradicted the documentation it was meant to illustrate.
+
+The hardened scenarios are genuinely not clean, and the fixtures now say so: the
+hardened image still carries 283 known advisories and the hardened Terraform
+still fails 8 Checkov checks.
 
 ## 19. Security notes
 
@@ -612,13 +824,22 @@ enforces on others:
     (`subprocess` does not consult `PATHEXT`; only `CreateProcess` appends
     `.exe`). Verified with checkov 3.3.22: `subprocess.run(["checkov", ...],
     shell=False)` raises `FileNotFoundError` even though the shim is on `PATH`.
-    `scanners.base.resolve_executable()` therefore resolves such a shim with
-    `shutil.which` and invokes it as `COMSPEC /d /c <shim> <args...>`.
+    `scanners.base.resolve_executable()` therefore resolves such a shim and
+    invokes it as `COMSPEC /d /c <shim> <args...>`. The lookup is `PATH` first,
+    then the running interpreter's own `Scripts` directory, because a tool
+    installed into the virtual environment is invisible unless it has been
+    activated.
     - Real executables — `gitleaks.exe`, `trivy.exe` — are untouched and still
       run with `shell=False`.
     - Arguments are still passed as a list and are never concatenated into a
       command string. Only `cmd.exe` itself interprets them.
     - `/d` disables AutoRun script execution.
+    - The shim's own directory is placed at the front of the child's `PATH`, and
+      only for a resolved shim. A pip shim locates its interpreter by scanning
+      `PATH`; without this it runs the system Python and fails with
+      `ModuleNotFoundError`. The value comes from a resolved executable path, not
+      from input, and a native binary inherits the environment unchanged
+      (`scanners.base._shim_child_env`).
 - **No `eval` or `exec`** anywhere in the project.
 - **Untrusted scanner output.** Every scanner report is shape-validated before
   use, because a malformed report must not be able to crash the backend.
@@ -630,10 +851,29 @@ enforces on others:
 
 ## 20. Roadmap
 
+### Completed ahead of plan
+
+- [x] Comparative analysis: severity-only vs severity+count vs context-aware
+      (`xprisk_comparative.py`, results in
+      [`reports/comparative_study_results.json`](reports/comparative_study_results.json),
+      analysis in [`docs/risk-model.md`](docs/risk-model.md) §9). Done early
+      because Phase 9 made every constant injectable.
+
+### Remaining
+
+- [ ] Orchestration services and API routers, so the pipeline runs over HTTP
+      (Phases 12-13). This is the largest remaining gap.
+- [ ] Dashboard over HTTP with five views: overview, findings, risk analysis,
+      explanations, trends (Phase 14)
+- [ ] SonarQube against a live instance (closes the last unverified adapter)
+- [ ] Live PostgreSQL run (currently SQLite only)
 - [ ] GitHub Actions pipeline running the full scan chain (Phase 15)
 - [ ] XPRisk as an enforced deployment gate: BLOCK stops the pipeline (Phase 16)
 - [ ] Historical analytics: newly introduced vs resolved findings (Phase 17)
-- [ ] Comparative study report: severity-only vs severity+count vs context-aware (Phase 19)
+- [ ] Calibration study: fit the weights to labelled incident data rather than
+      asserting them (Phase 19). This is what would turn the risk model from a
+      documented heuristic into a validated metric — see
+      [`docs/risk-model.md`](docs/risk-model.md) §8.
 - [ ] Performance measurement report (Phase 20)
 - [ ] Containerize backend, dashboard and PostgreSQL (Phase 21)
 - [ ] Cloud deployment (Phase 22)

@@ -2,9 +2,276 @@
   {
     "check_type": "terraform",
     "results": {
-      "passed_checks": [],
-      "failed_checks": [],
-      "skipped_checks": []
+      "failed_checks": [
+        {
+          "check_id": "CKV_AWS_23",
+          "check_name": "Ensure every security group and rule has a description",
+          "bc_check_id": "BC_AWS_NETWORKING_31",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "egress/[0]",
+              "ingress/[0]"
+            ]
+          },
+          "resource": "aws_security_group.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            52,
+            68
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_382",
+          "check_name": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+          "bc_check_id": "BC_AWS_IAM_93",
+          "check_result": {
+            "result": "FAILED",
+            "evaluated_keys": [
+              "egress/[0]/from_port",
+              "egress/[0]/to_port",
+              "egress/[0]/cidr_blocks",
+              "egress/[0]/ipv6_cidr_blocks"
+            ]
+          },
+          "resource": "aws_security_group.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            52,
+            68
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_62",
+          "check_name": "Ensure S3 buckets should have event notifications enabled",
+          "bc_check_id": "BC_AWS_LOGGING_36",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "secure": {
+                  "__end_line__": 24,
+                  "__start_line__": 22,
+                  "bucket": [
+                    "xprisk-phase3-clean-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.secure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type"
+            ]
+          },
+          "resource": "aws_s3_bucket.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            22,
+            24
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_5",
+          "check_name": "Ensure that Security Groups are attached to another resource",
+          "bc_check_id": "BC_AWS_NETWORKING_51",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_security_group": {
+                "secure": {
+                  "__end_line__": 68,
+                  "__start_line__": 52,
+                  "egress": [
+                    {
+                      "cidr_blocks": [
+                        [
+                          "0.0.0.0/0"
+                        ]
+                      ],
+                      "from_port": [
+                        0
+                      ],
+                      "protocol": [
+                        "-1"
+                      ],
+                      "to_port": [
+                        0
+                      ]
+                    }
+                  ],
+                  "ingress": [
+                    {
+                      "cidr_blocks": [
+                        [
+                          "0.0.0.0/0"
+                        ]
+                      ],
+                      "from_port": [
+                        443
+                      ],
+                      "protocol": [
+                        "tcp"
+                      ],
+                      "to_port": [
+                        443
+                      ]
+                    }
+                  ],
+                  "name": [
+                    "xprisk-phase3-clean-sg"
+                  ],
+                  "__address__": "aws_security_group.secure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "networking"
+            ]
+          },
+          "resource": "aws_security_group.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            52,
+            68
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV2_AWS_61",
+          "check_name": "Ensure that an S3 bucket has a lifecycle configuration",
+          "bc_check_id": "BC_AWS_LOGGING_35",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "secure": {
+                  "__end_line__": 24,
+                  "__start_line__": 22,
+                  "bucket": [
+                    "xprisk-phase3-clean-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.secure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "lifecycle_rule"
+            ]
+          },
+          "resource": "aws_s3_bucket.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            22,
+            24
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_18",
+          "check_name": "Ensure the S3 bucket has access logging enabled",
+          "bc_check_id": "BC_AWS_S3_13",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "secure": {
+                  "__end_line__": 24,
+                  "__start_line__": 22,
+                  "bucket": [
+                    "xprisk-phase3-clean-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.secure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "resource_type",
+              "logging"
+            ]
+          },
+          "resource": "aws_s3_bucket.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            22,
+            24
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_144",
+          "check_name": "Ensure that S3 bucket has cross-region replication enabled",
+          "bc_check_id": "BC_AWS_GENERAL_72",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "secure": {
+                  "__end_line__": 24,
+                  "__start_line__": 22,
+                  "bucket": [
+                    "xprisk-phase3-clean-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.secure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "replication_configuration/rules/*/status",
+              "rule/*/status",
+              "resource_type"
+            ]
+          },
+          "resource": "aws_s3_bucket.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            22,
+            24
+          ],
+          "severity": null
+        },
+        {
+          "check_id": "CKV_AWS_145",
+          "check_name": "Ensure that S3 buckets are encrypted with KMS by default",
+          "bc_check_id": "BC_AWS_GENERAL_56",
+          "check_result": {
+            "result": "FAILED",
+            "entity": {
+              "aws_s3_bucket": {
+                "secure": {
+                  "__end_line__": 24,
+                  "__start_line__": 22,
+                  "bucket": [
+                    "xprisk-phase3-clean-test-fixture"
+                  ],
+                  "__address__": "aws_s3_bucket.secure"
+                }
+              }
+            },
+            "evaluated_keys": [
+              "server_side_encryption_configuration/rule/apply_server_side_encryption_by_default/sse_algorithm",
+              "resource_type",
+              "rule/apply_server_side_encryption_by_default/sse_algorithm"
+            ]
+          },
+          "resource": "aws_s3_bucket.secure",
+          "file_path": "\\main.tf",
+          "file_line_range": [
+            22,
+            24
+          ],
+          "severity": null
+        }
+      ]
+    },
+    "_xprisk_fixture": {
+      "data_origin": "REAL_CHECKOV_OUTPUT",
+      "tool_version": "checkov 3.3.22",
+      "note": "Verbatim Checkov output, trimmed to the fields scanners/checkov_scanner.py reads. Severity is null because Checkov does not report severity for Terraform resource checks; see docs/risk-model.md section 7.3."
     }
   }
 ]
