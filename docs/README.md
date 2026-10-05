@@ -3,8 +3,8 @@
 | Document | Phase | Purpose |
 |---|---|---|
 | [`risk-model.md`](risk-model.md) | 9 | **The research core.** Severity weights, context multipliers, the normalization curve and the decision thresholds, each with its rationale, worked examples, sensitivity notes and an explicit statement of what is *not* claimed. |
-| `architecture.md` | 1-14 | Layer diagram, dependency rules and the rationale for each separation. Written up during Phase 13. |
-| `api.md` | 13 | Endpoint reference beyond the auto-generated OpenAPI docs. Written up during Phase 13. |
+| [`architecture.md`](architecture.md) | 1-14 | Layer diagram, dependency rules and the rationale for each separation. |
+| [`api.md`](api.md) | 13 | Endpoint reference beyond the auto-generated OpenAPI docs. |
 
 ## Reporting artifacts
 

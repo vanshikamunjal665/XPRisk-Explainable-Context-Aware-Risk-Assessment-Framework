@@ -41,9 +41,11 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
+from backend.app.api.scan import router as scan_router
 from backend.app.config import AppSettings, get_app_settings
+from backend.app.services.scan_service import ScanService
 
 
 @lru_cache(maxsize=1)
@@ -77,15 +79,42 @@ def _database_status(settings: AppSettings) -> str:
         return "unavailable"
 
 
-def create_app(settings: AppSettings | None = None) -> FastAPI:
+def get_scan_service(request: Request) -> ScanService:
+    """Resolve the :class:`ScanService` a request should use.
+
+    Stored on ``app.state`` at startup rather than constructed per request,
+    because ``ScanService`` builds a SQLAlchemy session factory and an engine;
+    creating those per request would open a connection pool each time.
+
+    Overridable in tests by assigning to ``app.state.scan_service``, which is how
+    ``tests/test_scan_endpoint.py`` points it at a temporary database without
+    mutating process-wide state.
+    """
+
+    service = getattr(request.app.state, "scan_service", None)
+    if service is None:
+        service = ScanService()
+        request.app.state.scan_service = service
+    return service
+
+
+def create_app(
+    settings: AppSettings | None = None,
+    *,
+    scan_service: ScanService | None = None,
+) -> FastAPI:
     """Build the ASGI application.
 
-    ``settings`` is injectable so tests can supply an isolated configuration
-    instead of mutating the process environment.
+    ``settings`` and ``scan_service`` are both injectable so tests can supply an
+    isolated configuration and an isolated database instead of mutating the
+    process environment.
     """
 
     resolved = settings or get_app_settings()
     application = FastAPI(title=resolved.app_name, version="0.1.0")
+
+    if scan_service is not None:
+        application.state.scan_service = scan_service
 
     @application.get("/health")
     def health() -> dict[str, Any]:
@@ -96,6 +125,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "database": _database_status(resolved),
         }
 
+    application.include_router(scan_router)
     return application
 
 
