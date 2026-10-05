@@ -99,20 +99,67 @@ def test_gitleaks_missing_commit_and_date():
 # -- Trivy -------------------------------------------------------------------
 
 def test_trivy_normalization_from_fixture():
+    """Normalization against a complete real Trivy scan.
+
+    The previous version of this test pinned ``CVE-2023-12345`` against a
+    hand-written fixture. That identifier was invented, so the test was proving
+    only that the code round-trips its own fiction. It now runs over a real
+    scan and asserts that the normalization contract holds for every record:
+    tool and category are assigned, the CVE identifier is carried through as the
+    finding id, Trivy's five severities all land on XPRisk severities, and the
+    package, target and fix availability survive into metadata.
+    """
+
     from scanners.trivy_scanner import parse_trivy_report
 
-    findings = parse_trivy_report((FIX / "trivy/sample_image_scan.json").read_text())
+    raw = (FIX / "trivy/sample_image_scan.json").read_text(encoding="utf-8")
+    findings = parse_trivy_report(raw)
+    assert len(findings) == 651
+
     nf = normalize_trivy(findings[0], data_origin="FIXTURE", now=NOW)
     assert nf.tool == "TRIVY"
     assert nf.category is Category.CONTAINER
-    assert nf.finding_id == "CVE-2023-12345"
-    assert nf.severity is Severity.HIGH
-    assert nf.resource == "python:3.6-slim (debian 10.13)"
-    assert nf.file is None
+    assert nf.finding_id == findings[0].vulnerability_id
+    assert nf.resource.startswith("xprisk-vulnerable:demo")
+    assert nf.file is None  # Trivy reports no file for image packages
     assert nf.line is None
-    assert nf.metadata["trivy"]["fixed_version"] == "1.1.1n-0+deb10u5"
-    assert nf.metadata["trivy"]["package"] == "libssl1.1"
     assert nf.metadata["data_origin"] == "FIXTURE"
+
+    # Every record normalizes without loss, and all five Trivy severities map
+    # onto the XPRisk scale (UNKNOWN -> INFO).
+    seen = set()
+    for finding in findings:
+        normalized = normalize_trivy(finding, data_origin="FIXTURE", now=NOW)
+        assert normalized.tool == "TRIVY"
+        assert normalized.category is Category.CONTAINER
+        assert normalized.finding_id == finding.vulnerability_id
+        assert normalized.metadata["trivy"]["package"] == finding.package
+        assert normalized.metadata["trivy"]["installed_version"] == finding.installed_version
+        assert normalized.metadata["trivy"]["fixed_version"] == finding.fixed_version
+        assert normalized.metadata["trivy"]["primary_url"] == finding.primary_url
+        seen.add(normalized.severity)
+    assert seen == {Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO}
+
+
+def test_trivy_target_split_preserved_across_result_entries():
+    """The real scan covers an OS package set and a Python package set.
+
+    Trivy reports these as separate ``Results`` entries with different targets,
+    and the adapter must not merge them into one indistinguishable blob.
+    """
+
+    from scanners.trivy_scanner import parse_trivy_report
+
+    raw = (FIX / "trivy/sample_image_scan.json").read_text(encoding="utf-8")
+    by_target = {}
+    for finding in parse_trivy_report(raw):
+        by_target.setdefault(finding.target, []).append(finding)
+
+    assert len(by_target) == 2
+    assert by_target["Python"][0].package_type == "python-pkg"
+    os_findings = by_target["xprisk-vulnerable:demo (debian 11.2)"]
+    assert len(os_findings) == 639
+    assert {f.package_type for f in os_findings} == {"debian"}
 
 
 def test_trivy_unknown_severity_maps_to_info():
@@ -128,20 +175,44 @@ def test_trivy_missing_fixed_version():
 # -- Checkov -----------------------------------------------------------------
 
 def test_checkov_normalization_from_fixture():
+    """Normalization against a complete real Checkov run.
+
+    The hand-written fixture this used to read carried ``severity: "HIGH"`` and a
+    POSIX file path, neither of which real Checkov produces on Windows. Every
+    finding here comes from an actual run, so the asserted severity is the
+    documented MEDIUM fallback rather than a severity Checkov supplied, and the
+    asserted path is Checkov's real Windows-relative ``\\main.tf``.
+    """
+
     from scanners.checkov_scanner import parse_checkov_report
 
-    findings = parse_checkov_report((FIX / "checkov/terraform_insecure.json").read_text())
+    raw = (FIX / "checkov/terraform_insecure.json").read_text(encoding="utf-8")
+    findings = parse_checkov_report(raw)
+    assert len(findings) == 24
+
     nf = normalize_checkov(findings[0], data_origin="FIXTURE", now=NOW)
     assert nf.tool == "CHECKOV"
     assert nf.category is Category.IAC
-    assert nf.finding_id == "CKV_AWS_20"
-    assert nf.resource == "aws_s3_bucket.insecure"
-    assert nf.file == "/infrastructure/scenarios/insecure/main.tf"
-    assert nf.line == 27
-    assert nf.severity is Severity.HIGH
-    assert "S3 Bucket" in (nf.description or "")
+    assert nf.finding_id == "CKV_AWS_23"
+    assert nf.resource == "aws_security_group.insecure"
+    assert nf.file == "\\main.tf"
+    assert nf.line == 45
+    # Checkov reported no severity, so the documented fallback applies and the
+    # decision is recorded on the finding rather than hidden.
+    assert findings[0].severity is None
+    assert nf.severity is Severity.MEDIUM
+    assert nf.metadata["checkov"]["severity_raw"] is None
+    assert nf.metadata["checkov"]["severity_policy"].startswith("xprisk_policy")
+    assert nf.description == "Ensure every security group and rule has a description"
     assert nf.metadata["checkov"]["check_type"] == "terraform"
     assert nf.metadata["data_origin"] == "FIXTURE"
+
+    # Every real check normalizes to MEDIUM, because every real check is
+    # severity-null. This is the behaviour docs/risk-model.md section 7.3
+    # describes, now exercised against data that actually has the property.
+    assert {normalize_checkov(f, data_origin="FIXTURE", now=NOW).severity for f in findings} == {
+        Severity.MEDIUM
+    }
 
 
 def test_checkov_missing_severity_documented_default():
@@ -247,15 +318,16 @@ def test_collection_normalization_fixture_mode():
         },
     )
     normalized = normalize_collection(collection, now=NOW)
-    # 2 Gitleaks (xprisk-test-secret + private-key) + 2 Trivy + 2 Checkov
-    # + 2 SonarQube. The Gitleaks count follows the verified 8.30.1 run.
-    assert len(normalized) == 8
+    # Counts follow the real scans behind each fixture: Gitleaks 8.30.1 reports
+    # 2 (xprisk-test-secret + private-key), Trivy reports 651, Checkov reports 24.
+    # SonarQube is the one synthetic input, because no live instance has been run.
+    assert len(normalized) == 2 + 651 + 24 + 2
     by_cat = {}
     for nf in normalized:
         by_cat.setdefault(nf.category, []).append(nf)
     assert len(by_cat[Category.SECRET]) == 2
-    assert len(by_cat[Category.CONTAINER]) == 2
-    assert len(by_cat[Category.IAC]) == 2
+    assert len(by_cat[Category.CONTAINER]) == 651
+    assert len(by_cat[Category.IAC]) == 24
     assert len(by_cat[Category.SOURCE_CODE]) == 2
     # The two secret findings must land on two different severities, which is
     # the whole point of the rule-based Gitleaks severity policy.

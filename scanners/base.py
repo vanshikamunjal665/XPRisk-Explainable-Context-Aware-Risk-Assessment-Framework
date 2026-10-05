@@ -25,8 +25,10 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 
@@ -63,6 +65,45 @@ class CommandOutcome:
 # generated as ``.cmd`` batch files, not as ``.exe``.
 _SHELL_SHIM_SUFFIXES = (".cmd", ".bat")
 
+#: Extensions probed next to the running interpreter, in preference order. The
+#: bare name is included because a venv can hold a real extensionless binary.
+_SIBLING_SUFFIXES = (".exe", ".cmd", ".bat", "")
+
+
+def _locate_executable(name: str) -> str | None:
+    """Find ``name`` on ``PATH``, then beside the running interpreter.
+
+    The second lookup exists because of how a pip console script works on
+    Windows. ``pip install checkov`` writes two files into the environment's
+    ``Scripts`` directory: ``checkov.exe``, which *is* executable, and
+    ``checkov.cmd``. XPRisk finds neither unless ``PATH`` contains that
+    directory, which is only true once the virtual environment has been
+    *activated*.
+
+    Running a documented command such as ``.\\.venv\\Scripts\\python.exe -m
+    pytest`` does **not** activate anything: it uses one interpreter out of the
+    venv while leaving ``PATH`` untouched. In that state the Checkov adapter
+    reported ``UNAVAILABLE`` and the assessment silently lost a whole scanner.
+
+    Looking beside ``sys.executable`` restores the tool without activating the
+    environment, and it cannot pick up a tool from a *different* environment,
+    because only this interpreter's own directory is searched.
+    """
+
+    found = shutil.which(name)
+    if found:
+        return found
+
+    if os.name != "nt":
+        return None
+
+    scripts_dir = Path(sys.executable).parent
+    for suffix in _SIBLING_SUFFIXES:
+        candidate = Path(f"{scripts_dir / name}{suffix}")
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
 
 def resolve_executable(argv: list[str]) -> list[str]:
     """Make a bare executable name resolvable on Windows.
@@ -84,6 +125,13 @@ def resolve_executable(argv: list[str]) -> list[str]:
     Native binaries are unaffected: ``gitleaks.exe`` and ``trivy.exe`` resolve
     normally, which is why this was not caught before checkov was installed.
 
+    Resolution order is ``PATH`` first, then the running interpreter's own
+    ``Scripts`` directory. The second step exists because every command in the
+    README uses ``.\\.venv\\Scripts\\python.exe <script>``, which selects the
+    environment's interpreter without extending ``PATH``. Without that fallback,
+    a tool installed into the virtual environment reported ``UNAVAILABLE`` and
+    its findings were dropped from the assessment without any visible error.
+
     What this does to the security guarantee
     ----------------------------------------
     Real executables still run with ``shell=False`` and an explicit argv list,
@@ -100,7 +148,7 @@ def resolve_executable(argv: list[str]) -> list[str]:
         return argv
 
     executable = argv[0]
-    resolved = shutil.which(executable)
+    resolved = _locate_executable(executable)
     if resolved is None:
         # Preserve the existing behaviour so the caller reports UNAVAILABLE
         # with the original name.
@@ -111,6 +159,33 @@ def resolve_executable(argv: list[str]) -> list[str]:
 
     comspec = os.environ.get("COMSPEC") or os.environ.get("ComSpec") or "cmd.exe"
     return [comspec, "/d", "/c", resolved, *argv[1:]]
+
+
+def _shim_child_env(argv: list[str]) -> dict[str, str] | None:
+    """Environment for a child process, or ``None`` to inherit unchanged.
+
+    A pip ``.cmd`` shim locates its own interpreter by scanning ``PATH`` for
+    ``python.exe``. When XPRisk is started with
+    ``.\\.venv\\Scripts\\python.exe`` rather than an activated environment,
+    ``PATH`` still points at the *system* interpreter, so the shim runs the
+    wrong Python and dies with ``ModuleNotFoundError: No module named
+    'checkov'``. That failure is indistinguishable from a missing tool once it
+    surfaces as zero findings.
+
+    Putting the shim's own directory at the front of the child's ``PATH``
+    reproduces exactly what activation would have done, using a directory that
+    was derived from a resolved executable path rather than from any input. It
+    is only applied when a shim was actually resolved, so a native binary such
+    as ``gitleaks.exe`` inherits the environment untouched.
+    """
+
+    if os.name != "nt" or len(argv) < 4 or argv[2] != "/c":
+        return None
+
+    shim_dir = str(Path(argv[3]).parent)
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join(filter(None, [shim_dir, env.get("PATH", "")]))
+    return env
 
 
 def run_command(argv: list[str], timeout: float) -> CommandOutcome:
@@ -130,6 +205,7 @@ def run_command(argv: list[str], timeout: float) -> CommandOutcome:
             text=True,
             timeout=timeout,
             check=False,
+            env=_shim_child_env(argv),
         )
     except FileNotFoundError:
         return CommandOutcome(None, "", "", f"executable not found: {argv[0]}")

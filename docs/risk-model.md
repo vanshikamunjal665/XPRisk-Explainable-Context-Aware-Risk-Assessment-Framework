@@ -250,7 +250,7 @@ reports `severity: null`.** The normalizer's
 
 Consequence: for IaC findings, severity is uninformative and **count is the only
 discriminating signal**. The verified runs give 24 findings for
-`demo-app/scenarios/insecure` versus 8 for `demo-app/scenarios/clean`, and that
+`infrastructure/scenarios/insecure` versus 8 for `infrastructure/scenarios/clean`, and that
 3:1 ratio is what separates the two scenarios — not the severity labels.
 
 XPRisk deliberately does **not** invent severities for Checkov checks. Assigning

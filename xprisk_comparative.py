@@ -60,8 +60,26 @@ def finding(idx: int, severity: Severity, category: Category, tool: str = "fixtu
 def finding_sets() -> dict[str, list[XPRiskFinding]]:
     """The finding sets the comparative report is built from.
 
-    Counts and severities here are taken from the verified Phase 4 scanner runs
-    so the comparison reflects real scanner output rather than invented numbers.
+    Counts and severities are taken from verified scanner runs so the comparison
+    reflects real scanner output rather than invented numbers.
+
+    The container sets reproduce the severity breakdown of the two real Trivy
+    0.75.0 scans exactly, including Trivy's ``UNKNOWN`` band. ``UNKNOWN`` is
+    carried as XPRisk ``INFO`` because that is what
+    ``normalizer.normalize_trivy`` maps it to, so the sizes here match the sizes
+    of the committed fixtures:
+
+    ==============================  ======  =====  =====  =====  ====  =====
+    Image                          CRITICAL  HIGH  MEDIUM  LOW  INFO  Total
+    ==============================  ======  =====  =====  =====  ====  =====
+    xprisk-vulnerable:demo              31    174     257   179    10    651
+    xprisk-clean:demo                     5     58     118   101     1    283
+    ==============================  ======  =====  =====  =====  ====  =====
+
+    An earlier version of this function labelled these sets "651" and "283" while
+    building 641 and 341 findings from them. Every container score saturates at
+    100.0 either way, so the error was invisible in the output while the labels
+    overstated what had been measured.
     """
 
     def n(count: int, severity: Severity, category: Category) -> list[XPRiskFinding]:
@@ -76,21 +94,25 @@ def finding_sets() -> dict[str, list[XPRiskFinding]]:
         # The threshold-relevant cases.
         "1 CRITICAL secret": n(1, Severity.CRITICAL, Category.SECRET),
         "5 MEDIUM iac": n(5, Severity.MEDIUM, Category.IAC),
-        # Checkov 3.3.22 verified counts.
+        # Checkov 3.3.22 verified counts. Severity is MEDIUM for all of them
+        # because Checkov reports none; see docs/risk-model.md section 7.3.
         "8 MEDIUM iac (clean)": n(8, Severity.MEDIUM, Category.IAC),
         "24 MEDIUM iac (insecure)": n(24, Severity.MEDIUM, Category.IAC),
-        # Container image vulnerability counts, truncated from the real run.
+        # xprisk-vulnerable:demo: 31 + 174 + 257 + 179 + 10 = 651.
         "651 CRIT/HIGH/MED/LOW container": (
             n(31, Severity.CRITICAL, Category.CONTAINER)
             + n(174, Severity.HIGH, Category.CONTAINER)
-            + n(258, Severity.MEDIUM, Category.CONTAINER)
-            + n(178, Severity.LOW, Category.CONTAINER)
+            + n(257, Severity.MEDIUM, Category.CONTAINER)
+            + n(179, Severity.LOW, Category.CONTAINER)
+            + n(10, Severity.INFO, Category.CONTAINER)
         ),
+        # xprisk-clean:demo: 5 + 58 + 118 + 101 + 1 = 283.
         "283 CRIT/HIGH/MED/LOW container": (
             n(5, Severity.CRITICAL, Category.CONTAINER)
             + n(58, Severity.HIGH, Category.CONTAINER)
-            + n(258, Severity.MEDIUM, Category.CONTAINER)
-            + n(20, Severity.LOW, Category.CONTAINER)
+            + n(118, Severity.MEDIUM, Category.CONTAINER)
+            + n(101, Severity.LOW, Category.CONTAINER)
+            + n(1, Severity.INFO, Category.CONTAINER)
         ),
         # A critical finding alongside substantial background noise.
         "1 CRIT secret + 24 MEDIUM iac": (

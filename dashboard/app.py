@@ -112,6 +112,15 @@ def _render_assessment(bundle) -> None:
     c3.metric("Findings", bundle.finding_count)
     st.caption(explanation.headline)
 
+    if bundle.total_raw > 100.0:
+        st.warning(
+            f"Score saturation: the raw contribution is {bundle.total_raw:.0f}, so the "
+            f"base score is pinned at 100 before the context multiplier is applied. "
+            f"Context cannot move a score that is already at the ceiling, so this "
+            f"scenario reads {bundle.decision} in every context. This is a measured "
+            f"limitation of the model, not a bug — see docs/risk-model.md section 7.5."
+        )
+
     # Decision section
     st.subheader("Decision")
     color = DECISION_COLORS.get(bundle.decision, "gray")
@@ -176,7 +185,18 @@ def _render_history(data: DashboardData) -> None:
 
     rows = history_table(deployments)
     if not rows:
-        st.info("No deployments available.")
+        st.info(
+            "No stored deployments. This is expected today, not a failure to load."
+        )
+        st.caption(
+            "An empty history is the correct state for this build: no runnable path "
+            "writes to the database. `StorageService` can create deployments, findings "
+            "and risk factors, and `tests/test_storage.py` proves it does, but nothing "
+            "outside the test suite calls those write methods — the orchestration "
+            "service that would (`scan_service`) is Phase 12 and has not been written. "
+            "Assessments run in the *Assessment* view are computed, shown and "
+            "discarded. See README section 5, 'implemented, never called'."
+        )
         return
 
     f1, f2, f3 = st.columns(3)
@@ -264,6 +284,7 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001
             st.error(f"Unable to load assessment data: {exc}")
             return
+        st.info(FIXTURE_PRESETS[preset].note)
         if not findings:
             st.success("Assessment produced no findings — deployment looks clean.")
         try:

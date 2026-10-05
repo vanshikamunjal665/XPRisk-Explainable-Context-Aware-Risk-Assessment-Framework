@@ -41,6 +41,22 @@ class TrivyFinding:
         return asdict(self)
 
 
+def _optional_version(value: Any) -> str | None:
+    """Return a version string, or ``None`` when no fix has been published.
+
+    Trivy represents "no fixed version available" two different ways: the key is
+    sometimes absent, sometimes present and set to an empty string. Passing the
+    empty string through would put a blank value in finding metadata and, worse,
+    would render in the dashboard as though a fix existed. Both forms mean the
+    same thing here, so they are collapsed.
+    """
+
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def parse_trivy_report(text: str) -> list[TrivyFinding]:
     data = parse_json_object_or_list(text)
     if not isinstance(data, dict) or not isinstance(data.get("Results"), list):
@@ -59,7 +75,7 @@ def parse_trivy_report(text: str) -> list[TrivyFinding]:
                     vulnerability_id=item.get("VulnerabilityID"),
                     package=item.get("PkgName"),
                     installed_version=item.get("InstalledVersion"),
-                    fixed_version=item.get("FixedVersion"),
+                    fixed_version=_optional_version(item.get("FixedVersion")),
                     severity=item.get("Severity"),
                     title=item.get("Title"),
                     description=item.get("Description"),

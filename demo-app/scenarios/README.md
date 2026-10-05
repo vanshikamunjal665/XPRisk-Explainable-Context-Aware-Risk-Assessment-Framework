@@ -71,13 +71,18 @@ and the three Gitleaks behaviours that are easy to get wrong.
 Both images build, and both were scanned with a real `trivy image` run
 (Trivy 0.75.0, Docker Desktop 29.2.0):
 
-| Image | Base | Findings | CRITICAL | HIGH |
-|---|---|---|---|---|
-| `xprisk-vulnerable:demo` | `python:3.6-slim` (Debian 11.2) | 651 | 31 | 174 |
-| `xprisk-clean:demo` | `python:3.12-slim-bookworm` (Debian 12.15) | 283 | 5 | 58 |
+| Image | Base | Findings | CRITICAL | HIGH | MEDIUM | LOW | UNKNOWN |
+|---|---|---|---|---|---|---|---|
+| `xprisk-vulnerable:demo` | `python:3.6-slim` (Debian 11.2) | 651 | 31 | 174 | 257 | 179 | 10 |
+| `xprisk-clean:demo` | `python:3.12-slim-bookworm` (Debian 12.15) | 283 | 5 | 58 | 118 | 101 | 1 |
 
 That roughly 6x CRITICAL and 3x HIGH gap is the container half of the
 controlled comparison in integration TEST 4.
+The UNKNOWN column is real and worth knowing about: 10 of the vulnerable image's
+advisories have no assigned identifier yet (Debian `TEMP-...` and `DLA-nnnn-n`
+placeholders). XPRisk maps Trivy's `UNKNOWN` to `INFO`, so they still carry
+weight rather than being dropped.
+
 
 ```powershell
 docker build -t xprisk-vulnerable:demo -f demo-app/scenarios/insecure/Dockerfile.vulnerable demo-app/scenarios/insecure
@@ -105,6 +110,35 @@ tarball via `trivy image --input`, which removes the socket dependency. It
 also rewrites Trivy's reported target, because `--input` makes Trivy echo the
 tarball path — a random temp path that would otherwise change every run and
 make finding ids non-deterministic.
+
+## Verified Checkov results
+
+Both Terraform scenarios were scanned with a real `checkov` run
+(Checkov 3.3.22, `--framework terraform`):
+
+| Target | Failed checks | Exit code |
+|---|---|---|
+| `infrastructure/scenarios/insecure` | 24 | 1 |
+| `infrastructure/scenarios/clean` | 8 | 1 |
+
+Two observations that matter more than the counts:
+
+1. **Every check reports `severity: null`.** Not one of the 24 carries a
+   severity, so XPRisk's documented MEDIUM fallback is what runs in production,
+   not only in the test suite. The 3:1 count ratio is the only signal separating
+   the two scenarios. Recorded as limitation 7.3 in
+   [`docs/risk-model.md`](../../../docs/risk-model.md).
+2. **The hardened scenario still fails 8 checks.** Those are policies the
+   hardened file does not attempt to satisfy, not oversights in it. Checkov's
+   policy set is larger than the demo was written against, and the honest
+   response is to report the 8 rather than edit them out of the fixture.
+
+Checkov exits 1 whenever any check fails, so the adapter treats a non-zero exit
+with parseable JSON as success rather than as a scanner failure.
+
+```powershell
+.\.venv\Scripts\checkov.cmd -d infrastructure/scenarios/insecure -o json --framework terraform --quiet
+```
 
 ## Why committing this `secrets/` directory is safe
 
